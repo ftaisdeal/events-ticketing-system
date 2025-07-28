@@ -1,0 +1,3 @@
+PLANNING
+- Ask Copilot for recommendations for the entire app
+- Create directory structure
