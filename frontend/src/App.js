@@ -1,0 +1,84 @@
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
+import { Container } from '@mui/material';
+
+import Navbar from './components/Layout/Navbar';
+import Footer from './components/Layout/Footer';
+import Home from './pages/Home';
+import Events from './pages/Events';
+import EventDetail from './pages/EventDetail';
+import Login from './pages/Auth/Login';
+import Register from './pages/Auth/Register';
+import Profile from './pages/Profile';
+import Cart from './pages/Cart';
+import Checkout from './pages/Checkout';
+import Orders from './pages/Orders';
+import Dashboard from './pages/Dashboard/Dashboard';
+import ProtectedRoute from './components/Auth/ProtectedRoute';
+
+function App() {
+  return (
+    <div className="App">
+      <Navbar />
+      <main style={{ minHeight: 'calc(100vh - 140px)', paddingTop: '20px' }}>
+        <Container maxWidth="lg">
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<Home />} />
+            <Route path="/events" element={<Events />} />
+            <Route path="/events/:slug" element={<EventDetail />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            
+            {/* Protected Routes */}
+            <Route 
+              path="/profile" 
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/cart" 
+              element={
+                <ProtectedRoute>
+                  <Cart />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/checkout" 
+              element={
+                <ProtectedRoute>
+                  <Checkout />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/orders" 
+              element={
+                <ProtectedRoute>
+                  <Orders />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Dashboard Routes */}
+            <Route 
+              path="/dashboard/*" 
+              element={
+                <ProtectedRoute requiredRole="organizer">
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+          </Routes>
+        </Container>
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+export default App;
