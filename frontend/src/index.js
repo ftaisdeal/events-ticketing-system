@@ -8,7 +8,7 @@ import { Toaster } from 'react-hot-toast';
 
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
-import './index.css';
+import './styles.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
