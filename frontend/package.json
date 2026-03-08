@@ -22,40 +22,29 @@
     "react-hook-form": "^7.45.4",
     "react-hot-toast": "^2.4.1",
     "react-query": "^3.39.3",
-    "react-router-dom": "^6.15.0",
-    "react-scripts": "^0.0.0"
+    "react-router-dom": "^6.15.0"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
     "@types/lodash": "^4.14.196",
     "@types/node": "^22.13.10",
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.7",
-    "typescript": "^4.9.5"
+    "@vitest/ui": "^2.1.9",
+    "typescript": "^4.9.5",
+    "vite": "^5.4.19",
+    "vitest": "^2.1.8",
+    "jsdom": "^25.0.1"
   },
   "proxy": "http://localhost:3001"
 }

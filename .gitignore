@@ -16,6 +16,7 @@ Icon?
 # build outputs
 backend/dist/
 frontend/build/
+frontend/dist/
 coverage/
 *.tsbuildinfo
 
