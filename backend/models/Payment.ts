@@ -1,0 +1,12 @@
+import { DataTypes, Sequelize } from 'sequelize';
+
+const createPaymentModel = (sequelize: Sequelize) => {
+  const Payment = sequelize.define('Payment', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    amount: { type: DataTypes.FLOAT, allowNull: false },
+    status: { type: DataTypes.STRING, defaultValue: 'pending' }
+  });
+  return Payment;
+};
+
+export default createPaymentModel;
