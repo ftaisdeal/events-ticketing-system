@@ -6,9 +6,5 @@
 Icon?
 **/Icon?
 
-# Ignore docs directory
-docs/
-
-# Ignore Node dependencies
 backend/node_modules/
 frontend/node_modules/
