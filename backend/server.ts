@@ -17,11 +17,25 @@ dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
+const configuredFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+const allowedOrigins = new Set([
+  configuredFrontendUrl,
+  configuredFrontendUrl.replace('localhost', '127.0.0.1'),
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
+]);
 
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true
 }));
 

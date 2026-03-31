@@ -6,9 +6,10 @@ import { useAuth } from '../../contexts/AuthContext';
 type ProtectedRouteProps = {
 	children: ReactNode;
 	requiredRole?: string;
+	requiredEmail?: string;
 };
 
-const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps): JSX.Element => {
+const ProtectedRoute = ({ children, requiredRole, requiredEmail }: ProtectedRouteProps): JSX.Element => {
 	const location = useLocation();
 	const { isAuthenticated, isLoading, user } = useAuth();
 
@@ -21,6 +22,10 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps): JSX.El
 	}
 
 	if (requiredRole && user?.role !== requiredRole && user?.role !== 'admin') {
+		return <Navigate to="/" replace />;
+	}
+
+	if (requiredEmail && user?.email.toLowerCase() !== requiredEmail.toLowerCase()) {
 		return <Navigate to="/" replace />;
 	}
 

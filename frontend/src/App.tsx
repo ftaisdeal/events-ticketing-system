@@ -16,6 +16,8 @@ import Orders from './pages/Orders';
 import Dashboard from './pages/Dashboard/Dashboard';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 
+const primaryOrganizerEmail = import.meta.env.VITE_PRIMARY_ORGANIZER_EMAIL as string | undefined;
+
 function App(): JSX.Element {
   return (
     <div className="app-shell">
@@ -68,7 +70,10 @@ function App(): JSX.Element {
             <Route 
               path="/dashboard/*" 
               element={
-                <ProtectedRoute requiredRole="organizer">
+                <ProtectedRoute
+                  requiredRole="organizer"
+                  requiredEmail={primaryOrganizerEmail}
+                >
                   <Dashboard />
                 </ProtectedRoute>
               } 
