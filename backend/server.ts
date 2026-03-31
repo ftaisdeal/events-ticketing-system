@@ -35,6 +35,9 @@ app.use(limiter);
 // Logging
 app.use(morgan('combined'));
 
+// Stripe webhook must receive raw body for signature verification.
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

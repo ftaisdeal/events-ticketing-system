@@ -67,6 +67,8 @@ FRONTEND_URL=http://localhost:3000
 # Stripe
 STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
 STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_signing_secret
+ORDER_RESERVATION_MINUTES=15
 
 # Email
 EMAIL_HOST=smtp.gmail.com
@@ -122,14 +124,14 @@ The server will start on http://localhost:3001
 - `PUT /api/users/profile` - Update user profile
 
 ### Orders
-- `POST /api/orders` - Create new order
-- `GET /api/orders` - Get user orders
-- `GET /api/orders/:id` - Get single order
+- `POST /api/orders/reserve` - Reserve inventory and create pending order
+- `GET /api/orders/my` - Get current user's orders
+- `POST /api/orders/:orderId/cancel` - Cancel pending order and release inventory
 
 ### Payments
 - `POST /api/payments/create-intent` - Create payment intent
-- `POST /api/payments/confirm` - Confirm payment
 - `POST /api/payments/webhook` - Stripe webhook
+- `POST /api/payments/expire-reservations` - Expire all pending reservations past `expiresAt`
 
 ## Database Models
 
