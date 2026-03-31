@@ -89,10 +89,10 @@ const Cart = (): JSX.Element => {
 
 	return (
 		<section>
-			<h1>Cart</h1>
-			<p>Build a checkout payload by entering event and ticket type IDs from your database.</p>
+			<h1 className="page-title">Your Cart</h1>
+			<p>Build your reservation payload with event and ticket type IDs from your seeded data.</p>
 
-			<div style={{ display: 'grid', gap: 12, maxWidth: 520 }}>
+			<div className="panel-card form-stack">
 				<label htmlFor="eventId">
 					Event ID
 					<input
@@ -101,7 +101,6 @@ const Cart = (): JSX.Element => {
 						min={1}
 						value={eventId || ''}
 						onChange={(e) => setEventId(Number(e.target.value))}
-						style={{ width: '100%', padding: 8, marginTop: 4 }}
 					/>
 				</label>
 
@@ -113,7 +112,6 @@ const Cart = (): JSX.Element => {
 						min={1}
 						value={ticketTypeId || ''}
 						onChange={(e) => setTicketTypeId(Number(e.target.value))}
-						style={{ width: '100%', padding: 8, marginTop: 4 }}
 					/>
 				</label>
 
@@ -125,11 +123,10 @@ const Cart = (): JSX.Element => {
 						min={1}
 						value={quantity}
 						onChange={(e) => setQuantity(Number(e.target.value))}
-						style={{ width: '100%', padding: 8, marginTop: 4 }}
 					/>
 				</label>
 
-				<button type="button" onClick={onAddItem}>
+				<button className="action-btn action-btn--primary" type="button" onClick={onAddItem}>
 					Add Item
 				</button>
 			</div>
@@ -138,33 +135,21 @@ const Cart = (): JSX.Element => {
 			{items.length === 0 ? <p>No items in cart.</p> : null}
 
 			{items.map((item) => (
-				<div
-					key={item.ticketTypeId}
-					style={{
-						display: 'flex',
-						justifyContent: 'space-between',
-						alignItems: 'center',
-						border: '1px solid #d8d8d8',
-						borderRadius: 6,
-						padding: 12,
-						marginBottom: 8,
-						maxWidth: 520
-					}}
-				>
+				<div key={item.ticketTypeId} className="line-item-row">
 					<span>
 						Ticket Type #{item.ticketTypeId} x {item.quantity}
 					</span>
-					<button type="button" onClick={() => onRemoveItem(item.ticketTypeId)}>
+					<button className="action-btn action-btn--ghost" type="button" onClick={() => onRemoveItem(item.ticketTypeId)}>
 						Remove
 					</button>
 				</div>
 			))}
 
-			<div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-				<button type="button" onClick={onProceedToCheckout} disabled={!eventId || items.length === 0}>
+			<div className="inline-actions">
+				<button className="action-btn action-btn--primary" type="button" onClick={onProceedToCheckout} disabled={!eventId || items.length === 0}>
 					Proceed to Checkout
 				</button>
-				<button type="button" onClick={onClearCart} disabled={items.length === 0}>
+				<button className="action-btn action-btn--ghost" type="button" onClick={onClearCart} disabled={items.length === 0}>
 					Clear Cart
 				</button>
 			</div>

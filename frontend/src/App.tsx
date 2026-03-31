@@ -18,9 +18,9 @@ import ProtectedRoute from './components/Auth/ProtectedRoute';
 
 function App(): JSX.Element {
   return (
-    <div className="App">
+    <div className="app-shell">
       <Navbar />
-      <main style={{ minHeight: 'calc(100vh - 140px)', paddingTop: '20px' }}>
+      <main className="main-content">
         <Container maxWidth="lg">
           <Routes>
             {/* Public Routes */}

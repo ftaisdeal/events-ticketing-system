@@ -1,10 +1,11 @@
 import axios from 'axios';
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
+import { useAuth } from '../contexts/AuthContext';
 import { createPaymentIntent, reserveOrder } from '../utils/checkoutApi';
 
 const cartStorageKey = 'ticketing_cart';
-const tokenStorageKey = 'token';
 
 type CartSnapshot = {
 	eventId: number;
@@ -29,7 +30,7 @@ const readCart = (): CartSnapshot => {
 };
 
 const Checkout = (): JSX.Element => {
-	const [token, setToken] = useState<string>(() => localStorage.getItem(tokenStorageKey) || '');
+	const { token, isAuthenticated } = useAuth();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string>('');
 	const [reservationResult, setReservationResult] = useState<{
@@ -44,10 +45,6 @@ const Checkout = (): JSX.Element => {
 	const cart = useMemo(() => readCart(), []);
 	const hasValidCart = cart.eventId > 0 && cart.items.length > 0;
 
-	const persistToken = () => {
-		localStorage.setItem(tokenStorageKey, token.trim());
-	};
-
 	const runCheckout = async () => {
 		setError('');
 		setReservationResult(null);
@@ -58,18 +55,15 @@ const Checkout = (): JSX.Element => {
 			return;
 		}
 
-		const safeToken = token.trim();
-		if (!safeToken) {
-			setError('JWT token is required. Paste token from auth/login response.');
+		if (!token) {
+			setError('You must be logged in to complete checkout.');
 			return;
 		}
 
 		setIsSubmitting(true);
 
 		try {
-			persistToken();
-
-			const reserve = await reserveOrder(safeToken, {
+			const reserve = await reserveOrder(token, {
 				eventId: cart.eventId,
 				items: cart.items
 			});
@@ -79,7 +73,7 @@ const Checkout = (): JSX.Element => {
 				reservationExpiresAt: reserve.reservationExpiresAt
 			});
 
-			const intent = await createPaymentIntent(safeToken, {
+			const intent = await createPaymentIntent(token, {
 				orderId: reserve.order.id
 			});
 
@@ -103,11 +97,16 @@ const Checkout = (): JSX.Element => {
 
 	return (
 		<section>
-			<h1>Checkout</h1>
+			<h1 className="page-title">Checkout</h1>
 			<p>This page reserves tickets, then creates a Stripe PaymentIntent.</p>
+			{!isAuthenticated ? (
+				<p className="error-text">
+					You are not signed in. <Link to="/login">Sign in</Link> first.
+				</p>
+			) : null}
 
-			<div style={{ border: '1px solid #d8d8d8', borderRadius: 6, padding: 12, maxWidth: 760 }}>
-				<h2 style={{ marginTop: 0 }}>Cart Snapshot</h2>
+			<div className="panel-card">
+				<h2>Cart Snapshot</h2>
 				<p>Event ID: {cart.eventId || 'none'}</p>
 				<ul>
 					{cart.items.map((item) => (
@@ -119,44 +118,35 @@ const Checkout = (): JSX.Element => {
 				{!hasValidCart ? <p>Cart is empty. Go to /cart and add items.</p> : null}
 			</div>
 
-			<div style={{ display: 'grid', gap: 8, marginTop: 16, maxWidth: 760 }}>
-				<label htmlFor="tokenInput">
-					JWT Token
-					<textarea
-						id="tokenInput"
-						value={token}
-						onChange={(e) => setToken(e.target.value)}
-						rows={4}
-						placeholder="Paste Bearer token value (without 'Bearer ')"
-						style={{ width: '100%', marginTop: 4, padding: 8, fontFamily: 'monospace' }}
-					/>
-				</label>
-
-				<button type="button" disabled={isSubmitting || !hasValidCart} onClick={runCheckout}>
+			<div className="inline-actions" style={{ marginTop: 16 }}>
+				<button className="action-btn action-btn--primary" type="button" disabled={isSubmitting || !hasValidCart || !isAuthenticated} onClick={runCheckout}>
 					{isSubmitting ? 'Processing...' : 'Reserve and Create PaymentIntent'}
 				</button>
+				<Link to="/cart" className="action-btn action-btn--ghost">
+					Edit Cart
+				</Link>
 			</div>
 
-			{error ? <p style={{ color: '#c62828', marginTop: 16 }}>Error: {error}</p> : null}
+			{error ? <p className="error-text" style={{ marginTop: 16 }}>Error: {error}</p> : null}
 
 			{reservationResult ? (
-				<div style={{ marginTop: 16, border: '1px solid #d8d8d8', borderRadius: 6, padding: 12 }}>
-					<h3 style={{ marginTop: 0 }}>Reservation Created</h3>
+				<div className="panel-card" style={{ marginTop: 16 }}>
+					<h3>Reservation Created</h3>
 					<p>Order ID: {reservationResult.orderId}</p>
 					<p>Expires At: {new Date(reservationResult.reservationExpiresAt).toLocaleString()}</p>
 				</div>
 			) : null}
 
 			{intentResult ? (
-				<div style={{ marginTop: 16, border: '1px solid #d8d8d8', borderRadius: 6, padding: 12 }}>
-					<h3 style={{ marginTop: 0 }}>PaymentIntent Created</h3>
+				<div className="panel-card" style={{ marginTop: 16 }}>
+					<h3>PaymentIntent Created</h3>
 					<p>Payment Intent ID: {intentResult.paymentIntentId}</p>
 					<p>Client Secret:</p>
 					<textarea
 						readOnly
 						value={intentResult.clientSecret || ''}
 						rows={3}
-						style={{ width: '100%', padding: 8, fontFamily: 'monospace' }}
+						className="mono-output"
 					/>
 				</div>
 			) : null}
