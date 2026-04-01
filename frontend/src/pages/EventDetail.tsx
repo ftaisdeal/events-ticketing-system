@@ -21,6 +21,14 @@ type EventDetailResponse = {
 	shortDescription?: string;
 	startDateTime: string;
 	endDateTime: string;
+	venue?: {
+		name?: string;
+		address?: string;
+		city?: string;
+		state?: string;
+		postalCode?: string;
+		country?: string;
+	} | null;
 	ticketTypes?: TicketType[];
 };
 
@@ -34,9 +42,9 @@ const formatEventRange = (startDateTime: string, endDateTime: string): string =>
 	const end = new Date(endDateTime);
 
 	const date = start.toLocaleDateString(undefined, {
-		month: 'numeric',
-		day: 'numeric',
-		year: 'numeric'
+		weekday: 'long',
+		month: 'long',
+		day: 'numeric'
 	});
 
 	const startTimeWithMeridiem = start.toLocaleTimeString(undefined, {
@@ -154,6 +162,19 @@ const EventDetail = (): JSX.Element => {
 					);
 				})}
 			</div>
+
+			{eventData.venue ? (
+				<div className="panel-card" style={{ marginTop: 16 }}>
+					<h2 style={{ marginTop: 0, marginBottom: 8 }}>Venue</h2>
+					{eventData.venue.name ? <p style={{ margin: '0 0 4px' }}><strong>{eventData.venue.name}</strong></p> : null}
+					{eventData.venue.address ? <p style={{ margin: '0 0 4px' }}>{eventData.venue.address}</p> : null}
+					<p className="event-card__meta" style={{ margin: 0 }}>
+						{[eventData.venue.city, eventData.venue.state].filter(Boolean).join(', ')}
+						{eventData.venue.postalCode ? ` ${eventData.venue.postalCode}` : ''}
+						{eventData.venue.country ? `, ${eventData.venue.country}` : ''}
+					</p>
+				</div>
+			) : null}
 		</section>
 	);
 };

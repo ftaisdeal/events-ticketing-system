@@ -42,6 +42,19 @@ const ensureAdmin = (req: AuthenticatedRequest, res: Response, next: NextFunctio
   next();
 };
 
+router.get('/', authenticate, ensureAdmin, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const venues = await Venue.findAll({
+      order: [['name', 'ASC']]
+    });
+
+    return res.json({ venues });
+  } catch (error) {
+    console.error('Get venues error:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.post('/', authenticate, ensureAdmin, [
   body('name').trim().isLength({ min: 2, max: 200 }),
   body('address').trim().isLength({ min: 3, max: 500 }),

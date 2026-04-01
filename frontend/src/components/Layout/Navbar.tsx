@@ -16,7 +16,7 @@ const Navbar = (): JSX.Element => {
 		<header className="site-header">
 			<div className="site-header__inner">
 				<NavLink to="/" className="brand-mark">
-					RDX Tickets
+					<h1 className="page-title"><span style={{color: 'red' }}>RDX</span> <span style={{color: 'gray' }}>THEATER</span></h1>
 				</NavLink>
 
 				<nav className="site-nav" aria-label="Main navigation">
@@ -37,9 +37,6 @@ const Navbar = (): JSX.Element => {
 						</>
 					) : (
 						<>
-							<NavLink to="/events" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
-								Events
-							</NavLink>
 							{isAuthenticated ? (
 								<>
 									<NavLink to="/cart" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
@@ -65,7 +62,7 @@ const Navbar = (): JSX.Element => {
 				<div className="site-actions">
 					{isAuthenticated ? (
 						<>
-							<span className="welcome-chip">{user?.firstName}</span>
+							<span className="welcome-chip">{user?.role === 'admin' ? 'admin' : user?.firstName}</span>
 							<button type="button" className="action-btn action-btn--ghost" onClick={handleLogout}>
 								Log Out
 							</button>
@@ -74,9 +71,6 @@ const Navbar = (): JSX.Element => {
 						<>
 							<NavLink to="/login" className="action-btn action-btn--ghost">
 								Log In
-							</NavLink>
-							<NavLink to="/register" className="action-btn action-btn--primary">
-								Join
 							</NavLink>
 						</>
 					)}

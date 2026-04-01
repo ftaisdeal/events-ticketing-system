@@ -58,9 +58,9 @@ const formatEventRange = (startDateTime: string, endDateTime: string): string =>
 	const end = new Date(endDateTime);
 
 	const date = start.toLocaleDateString(undefined, {
-		month: 'numeric',
+		weekday: 'long',
+		month: 'long',
 		day: 'numeric',
-		year: 'numeric'
 	});
 
 	const startTimeWithMeridiem = start.toLocaleTimeString(undefined, {
