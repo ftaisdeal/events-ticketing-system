@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { api } from '../utils/api';
 import { readStoredCart, StoredCartItem, writeStoredCart } from '../utils/cartStorage';
@@ -59,6 +58,7 @@ const formatEventRange = (startDateTime: string, endDateTime: string): string =>
 
 const EventDetail = (): JSX.Element => {
 	const { slug } = useParams<{ slug: string }>();
+	const navigate = useNavigate();
 	const [eventData, setEventData] = useState<EventDetailResponse | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
@@ -122,8 +122,8 @@ const EventDetail = (): JSX.Element => {
 		}
 
 		writeStoredCart(eventData.id, nextItems);
-		toast.success('Added to cart');
 		setQuantitiesByTicketType((current) => ({ ...current, [ticketTypeId]: 1 }));
+		navigate('/cart');
 	};
 
 	if (isLoading) {
@@ -145,6 +145,8 @@ const EventDetail = (): JSX.Element => {
 					const available = Number(ticketType.quantity) - Number(ticketType.quantitySold || 0);
 					const maxSelectable = Math.min(5, Math.max(available, 1));
 					const selectedQuantity = Math.min(quantitiesByTicketType[ticketType.id] || 1, maxSelectable);
+					const previewQuantity = available < 1 ? 0 : selectedQuantity;
+					const previewTotal = Number(ticketType.price) * previewQuantity;
 
 					return (
 						<article className="event-card" key={ticketType.id}>
@@ -181,6 +183,9 @@ const EventDetail = (): JSX.Element => {
 									style={{ width: '6ch', textAlign: 'center', paddingRight: 6 }}
 									aria-label="Quantity"
 								/>
+								<p className="event-card__meta" style={{ margin: 0, fontWeight: 700 }}>
+									Total: ${previewTotal.toFixed(2)}
+								</p>
 							</div>
 						</article>
 					);
@@ -195,7 +200,6 @@ const EventDetail = (): JSX.Element => {
 					<p className="event-card__meta" style={{ margin: 0 }}>
 						{[eventData.venue.city, eventData.venue.state].filter(Boolean).join(', ')}
 						{eventData.venue.postalCode ? ` ${eventData.venue.postalCode}` : ''}
-						{eventData.venue.country ? `, ${eventData.venue.country}` : ''}
 					</p>
 				</div>
 			) : null}

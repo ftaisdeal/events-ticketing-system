@@ -90,10 +90,6 @@ const Home = (): JSX.Element => {
 					</article>
 				))}
 			</div>
-			<img src="/img/stripe.png" alt="Stripe secure payment logo"/>
-			<div className="event-card__meta" style={{ display: 'flex', alignItems: 'center' }}>
-				Secure checkout powered by Stripe.
-			</div>
 		</section>
 	);
 };

@@ -1,17 +1,11 @@
 import axios from 'axios';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../contexts/AuthContext';
 import { createPaymentIntent, reserveOrder } from '../utils/checkoutApi';
 import { api } from '../utils/api';
-
-const cartStorageKey = 'ticketing_cart';
-
-type CartSnapshot = {
-	eventId: number;
-	items: Array<{ ticketTypeId: number; quantity: number }>;
-};
+import { CART_UPDATED_EVENT, readStoredCart, StoredCart } from '../utils/cartStorage';
 
 type CheckoutEventSummary = {
 	id: number;
@@ -20,29 +14,14 @@ type CheckoutEventSummary = {
 	endDateTime: string;
 };
 
-const readCart = (): CartSnapshot => {
-	const raw = localStorage.getItem(cartStorageKey);
-	if (!raw) {
-		return { eventId: 0, items: [] };
-	}
-
-	try {
-		const parsed = JSON.parse(raw) as CartSnapshot;
-		return {
-			eventId: Number(parsed.eventId) || 0,
-			items: Array.isArray(parsed.items) ? parsed.items : []
-		};
-	} catch (_error) {
-		return { eventId: 0, items: [] };
-	}
-};
-
 const Checkout = (): JSX.Element => {
+	const navigate = useNavigate();
 	const { token, isAuthenticated } = useAuth();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string>('');
 	const [eventSummary, setEventSummary] = useState<CheckoutEventSummary | null>(null);
 	const [isLoadingEvent, setIsLoadingEvent] = useState(false);
+	const [cart, setCart] = useState<StoredCart>(() => readStoredCart());
 	const [reservationResult, setReservationResult] = useState<{
 		orderId: number;
 		reservationExpiresAt: string;
@@ -51,9 +30,33 @@ const Checkout = (): JSX.Element => {
 		paymentIntentId: string;
 		clientSecret: string | null;
 	} | null>(null);
+	const [hasStartedCheckout, setHasStartedCheckout] = useState(false);
 
-	const cart = useMemo(() => readCart(), []);
-	const hasValidCart = cart.eventId > 0 && cart.items.length > 0;
+	const totalUnits = useMemo(
+		() => cart.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+		[cart.items]
+	);
+	const hasValidCart = cart.eventId > 0 && totalUnits > 0;
+
+	useEffect(() => {
+		const refreshCart = () => {
+			setCart(readStoredCart());
+		};
+
+		window.addEventListener('storage', refreshCart);
+		window.addEventListener(CART_UPDATED_EVENT, refreshCart as EventListener);
+
+		return () => {
+			window.removeEventListener('storage', refreshCart);
+			window.removeEventListener(CART_UPDATED_EVENT, refreshCart as EventListener);
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!hasValidCart) {
+			navigate('/cart', { replace: true });
+		}
+	}, [hasValidCart, navigate]);
 
 	useEffect(() => {
 		let active = true;
@@ -120,7 +123,6 @@ const Checkout = (): JSX.Element => {
 
 	const runCheckout = async () => {
 		setError('');
-		setReservationResult(null);
 		setIntentResult(null);
 
 		if (!hasValidCart) {
@@ -136,18 +138,23 @@ const Checkout = (): JSX.Element => {
 		setIsSubmitting(true);
 
 		try {
-			const reserve = await reserveOrder(token, {
-				eventId: cart.eventId,
-				items: cart.items
-			});
+			let orderId = reservationResult?.orderId;
 
-			setReservationResult({
-				orderId: reserve.order.id,
-				reservationExpiresAt: reserve.reservationExpiresAt
-			});
+			if (!orderId) {
+				const reserve = await reserveOrder(token, {
+					eventId: cart.eventId,
+					items: cart.items
+				});
+
+				orderId = reserve.order.id;
+				setReservationResult({
+					orderId: reserve.order.id,
+					reservationExpiresAt: reserve.reservationExpiresAt
+				});
+			}
 
 			const intent = await createPaymentIntent(token, {
-				orderId: reserve.order.id
+				orderId
 			});
 
 			setIntentResult({
@@ -159,6 +166,12 @@ const Checkout = (): JSX.Element => {
 				const message =
 					(requestError.response?.data as { message?: string } | undefined)?.message ||
 					requestError.message;
+				const status = requestError.response?.status;
+
+				if (status === 404 || status === 410 || message.toLowerCase().includes('pending')) {
+					setReservationResult(null);
+				}
+
 				setError(message);
 			} else {
 				setError('Unexpected checkout error.');
@@ -167,6 +180,15 @@ const Checkout = (): JSX.Element => {
 			setIsSubmitting(false);
 		}
 	};
+
+	useEffect(() => {
+		if (!hasValidCart || !isAuthenticated || !token || hasStartedCheckout) {
+			return;
+		}
+
+		setHasStartedCheckout(true);
+		void runCheckout();
+	}, [hasValidCart, isAuthenticated, token, hasStartedCheckout]);
 
 	return (
 		<section>
@@ -186,12 +208,15 @@ const Checkout = (): JSX.Element => {
 					))}
 				</div>
 				{!hasValidCart ? <p>Cart is empty. Go to /cart and add items.</p> : null}
+				{isSubmitting ? <p>Preparing secure payment...</p> : null}
 			</div>
 
 			<div className="inline-actions" style={{ marginTop: 16 }}>
-				<button className="action-btn action-btn--primary" type="button" disabled={isSubmitting || !hasValidCart || !isAuthenticated} onClick={runCheckout}>
-					{isSubmitting ? 'Processing...' : 'Continue to Secure Payment'}
-				</button>
+				{error ? (
+					<button className="action-btn action-btn--primary" type="button" disabled={isSubmitting || !hasValidCart || !isAuthenticated} onClick={runCheckout}>
+						{isSubmitting ? 'Processing...' : 'Retry Payment Setup'}
+					</button>
+				) : null}
 				<Link to="/cart" className="action-btn action-btn--ghost">
 					Edit Cart
 				</Link>
