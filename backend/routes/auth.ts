@@ -18,6 +18,25 @@ type AuthBody = {
   phone?: string;
 };
 
+const normalizePhone = (phone?: string): string | undefined => {
+  if (typeof phone !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = phone.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const hasLeadingPlus = trimmed.startsWith('+');
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  if (!digitsOnly) {
+    return undefined;
+  }
+
+  return hasLeadingPlus ? `+${digitsOnly}` : digitsOnly;
+};
+
 // Register
 router.post('/register', [
   body('firstName').notEmpty().trim().isLength({ min: 2, max: 50 }),
@@ -28,16 +47,28 @@ router.post('/register', [
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      const firstError = errors.array()[0];
+      return res.status(400).json({
+        message: typeof firstError?.msg === 'string' ? firstError.msg : 'Invalid registration data',
+        errors: errors.array()
+      });
     }
 
     const { firstName, lastName, email, password, phone } = req.body;
+    const normalizedPhone = normalizePhone(phone);
+
+    if (normalizedPhone && !/^[\+]?[1-9][\d]{0,15}$/.test(normalizedPhone)) {
+      return res.status(400).json({ message: 'Please enter a valid phone number' });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists with this email' });
     }
+
+    // After a full reset, let the first registered user bootstrap the admin role.
+    const isFirstUser = await User.count() === 0;
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -48,7 +79,8 @@ router.post('/register', [
       lastName,
       email,
       password: hashedPassword,
-      phone
+      phone: normalizedPhone,
+      role: isFirstUser ? 'admin' : 'customer'
     });
 
     // Generate JWT token
@@ -66,11 +98,23 @@ router.post('/register', [
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        phone: user.phone,
         role: user.role
       }
     });
   } catch (error) {
     console.error('Register error:', error);
+
+    const maybeSequelizeError = error as {
+      name?: string;
+      errors?: Array<{ message?: string }>;
+    };
+
+    if (maybeSequelizeError.name === 'SequelizeValidationError' || maybeSequelizeError.name === 'SequelizeUniqueConstraintError') {
+      const validationMessage = maybeSequelizeError.errors?.[0]?.message || 'Invalid registration data';
+      return res.status(400).json({ message: validationMessage });
+    }
+
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -118,6 +162,7 @@ router.post('/login', [
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        phone: user.phone,
         role: user.role
       }
     });
@@ -148,6 +193,7 @@ router.get('/verify', async (req: Request, res: Response) => {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        phone: user.phone,
         role: user.role
       }
     });

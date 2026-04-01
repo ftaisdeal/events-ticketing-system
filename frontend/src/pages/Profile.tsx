@@ -20,7 +20,7 @@ const Profile = (): JSX.Element => {
 					<strong>Email:</strong> {user.email}
 				</p>
 				<p>
-					<strong>Role:</strong> {user.role}
+					<strong>Phone:</strong> {user.phone || 'Not provided'}
 				</p>
 			</div>
 		</section>

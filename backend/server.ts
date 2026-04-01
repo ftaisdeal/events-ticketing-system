@@ -17,19 +17,26 @@ dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
+const isProduction = process.env.NODE_ENV === 'production';
 const configuredFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-const allowedOrigins = new Set([
+const staticAllowedOrigins = new Set([
   configuredFrontendUrl,
   configuredFrontendUrl.replace('localhost', '127.0.0.1'),
   'http://localhost:5173',
   'http://127.0.0.1:5173'
 ]);
 
+const isLocalDevOrigin = (origin: string): boolean => {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+};
+
 // Security middleware
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.has(origin)) {
+    const allowLocalDevOrigin = !isProduction && origin ? isLocalDevOrigin(origin) : false;
+
+    if (!origin || staticAllowedOrigins.has(origin) || allowLocalDevOrigin) {
       callback(null, true);
       return;
     }

@@ -7,7 +7,8 @@ import db from '../models';
 
 const { Event, User, Venue, Category, TicketType } = db;
 const jwtSecret = process.env.JWT_SECRET || 'dev-secret';
-const primaryOrganizerEmail = process.env.PRIMARY_ORGANIZER_EMAIL?.trim().toLowerCase();
+
+const getPrimaryOrganizerEmail = () => process.env.PRIMARY_ORGANIZER_EMAIL?.trim().toLowerCase();
 
 const router = express.Router();
 
@@ -41,7 +42,20 @@ const ensureOrganizer = async (req: AuthenticatedRequest, res: Response, next: N
     return res.status(403).json({ message: 'Organizer or admin access required' });
   }
 
+  // Admins should always be able to manage events.
+  if (req.user.role === 'admin') {
+    next();
+    return;
+  }
+
+  const primaryOrganizerEmail = getPrimaryOrganizerEmail();
   if (!primaryOrganizerEmail) {
+    next();
+    return;
+  }
+
+  const tokenEmail = req.user.email?.trim().toLowerCase();
+  if (tokenEmail && tokenEmail === primaryOrganizerEmail) {
     next();
     return;
   }
@@ -51,7 +65,8 @@ const ensureOrganizer = async (req: AuthenticatedRequest, res: Response, next: N
     return res.status(401).json({ message: 'User not found' });
   }
 
-  if ((user.email as string).toLowerCase() !== primaryOrganizerEmail) {
+  const userEmail = (user.email as string).trim().toLowerCase();
+  if (userEmail !== primaryOrganizerEmail) {
     return res.status(403).json({ message: 'Only the primary organizer account can manage events' });
   }
 
@@ -211,6 +226,64 @@ router.post('/', authenticate, ensureOrganizer, [
   }
 });
 
+router.post('/:eventId/ticket-types', authenticate, ensureOrganizer, [
+  body('name').trim().isLength({ min: 2, max: 100 }),
+  body('price').isFloat({ gt: 0 }),
+  body('quantity').isInt({ min: 1 }),
+  body('isActive').optional().isBoolean()
+], async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const eventId = Number(req.params.eventId);
+    if (!Number.isInteger(eventId) || eventId < 1) {
+      return res.status(400).json({ message: 'Invalid event id' });
+    }
+
+    const event = await Event.findByPk(eventId, {
+      attributes: ['id', 'title', 'organizerId']
+    });
+
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    if (req.user?.role !== 'admin' && Number((event as any).organizerId) !== req.user?.userId) {
+      return res.status(403).json({ message: 'You can only manage ticket types for your own events' });
+    }
+
+    const { name, price, quantity, isActive } = req.body as {
+      name: string;
+      price: number;
+      quantity: number;
+      isActive?: boolean;
+    };
+
+    const ticketType = await TicketType.create({
+      eventId,
+      name,
+      price: Number(price),
+      quantity: Number(quantity),
+      isActive: typeof isActive === 'boolean' ? isActive : true
+    });
+
+    return res.status(201).json({
+      message: 'Ticket type created successfully',
+      ticketType,
+      event: {
+        id: (event as any).id,
+        title: (event as any).title
+      }
+    });
+  } catch (error) {
+    console.error('Create ticket type error:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get all events with filters
 router.get('/', async (req: Request, res: Response) => {
   try {
@@ -300,6 +373,58 @@ router.get('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get events error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/manage/events', authenticate, ensureOrganizer, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const where: Record<string, any> = {};
+    if (req.user?.role !== 'admin') {
+      where.organizerId = req.user?.userId;
+    }
+
+    const events = await Event.findAll({
+      where,
+      include: [
+        {
+          model: TicketType,
+          as: 'ticketTypes',
+          attributes: ['quantitySold']
+        }
+      ],
+      order: [['startDateTime', 'DESC']]
+    });
+
+    const serializedEvents = events.map((eventRecord: any) => {
+      const event = eventRecord.get({ plain: true }) as {
+        id: number;
+        title: string;
+        slug: string;
+        status: string;
+        startDateTime: string;
+        endDateTime: string;
+        ticketTypes?: Array<{ quantitySold: number }>;
+      };
+
+      const ticketsSold = (event.ticketTypes || []).reduce((sum, ticketType) => {
+        return sum + Number(ticketType.quantitySold || 0);
+      }, 0);
+
+      return {
+        id: event.id,
+        title: event.title,
+        slug: event.slug,
+        status: event.status,
+        startDateTime: event.startDateTime,
+        endDateTime: event.endDateTime,
+        ticketsSold
+      };
+    });
+
+    res.json({ events: serializedEvents });
+  } catch (error) {
+    console.error('Get managed events error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

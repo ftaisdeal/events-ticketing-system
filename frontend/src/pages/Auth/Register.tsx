@@ -26,8 +26,15 @@ const Register = (): JSX.Element => {
 			navigate('/events', { replace: true });
 		} catch (submitError) {
 			if (axios.isAxiosError(submitError)) {
-				const message =
-					(submitError.response?.data as { message?: string } | undefined)?.message || 'Registration failed';
+				const responseData = submitError.response?.data as
+					| {
+							message?: string;
+							errors?: Array<{ msg?: string; message?: string }>;
+					  }
+					| undefined;
+
+				const validationMessage = responseData?.errors?.[0]?.msg || responseData?.errors?.[0]?.message;
+				const message = responseData?.message || validationMessage || 'Registration failed';
 				setError(message);
 			} else {
 				setError('Registration failed');
