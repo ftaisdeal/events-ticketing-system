@@ -1,6 +1,6 @@
 import axios from 'axios';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../../contexts/AuthContext';
 import { api, getAuthHeader } from '../../utils/api';
@@ -18,11 +18,29 @@ type VenueOption = {
 	country: string;
 };
 
-type CreatedEvent = {
+type EditableTicketType = {
+	id: number;
+	name: string;
+	price: number;
+	quantity: number;
+	isActive?: boolean;
+	quantitySold?: number;
+};
+
+type EditableEvent = {
 	id: number;
 	title: string;
 	slug: string;
-	status: string;
+	description: string;
+	shortDescription?: string | null;
+	startDateTime: string;
+	endDateTime: string;
+	timezone?: string | null;
+	status: 'draft' | 'published';
+	categoryId?: number | null;
+	venueId?: number | null;
+	maxCapacity?: number | null;
+	ticketTypes?: EditableTicketType[];
 };
 
 type ManagedEvent = {
@@ -35,20 +53,41 @@ type ManagedEvent = {
 	ticketsSold: number;
 };
 
-type CreatedTicketType = {
-	id: number;
-	name: string;
-	price: number;
-	quantity: number;
+const formatEventRange = (startDateTime: string, endDateTime: string): string => {
+	const start = new Date(startDateTime);
+	const end = new Date(endDateTime);
+
+	const date = start.toLocaleDateString(undefined, {
+		month: 'numeric',
+		day: 'numeric',
+		year: 'numeric'
+	});
+
+	const startTimeWithMeridiem = start.toLocaleTimeString(undefined, {
+		hour: 'numeric',
+		minute: '2-digit'
+	});
+
+	const endTimeWithMeridiem = end.toLocaleTimeString(undefined, {
+		hour: 'numeric',
+		minute: '2-digit'
+	});
+
+	const startTime = startTimeWithMeridiem.replace(/\s?[AP]M$/i, '');
+	const endTime = endTimeWithMeridiem.replace(/\s?([AP]M)$/i, '$1').toUpperCase();
+
+	return `${date}, ${startTime}-${endTime}`;
 };
 
 const Dashboard = (): JSX.Element => {
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { token, user } = useAuth();
 	const [categories, setCategories] = useState<CategoryOption[]>([]);
 	const [venues, setVenues] = useState<VenueOption[]>([]);
 	const [managedEvents, setManagedEvents] = useState<ManagedEvent[]>([]);
 	const [isLoadingManagedEvents, setIsLoadingManagedEvents] = useState(true);
 	const [title, setTitle] = useState('');
+	const [shortDescription, setShortDescription] = useState('');
 	const [description, setDescription] = useState('');
 	const [startDateTime, setStartDateTime] = useState('');
 	const [endDateTime, setEndDateTime] = useState('');
@@ -61,14 +100,13 @@ const Dashboard = (): JSX.Element => {
 	const [isLoadingOptions, setIsLoadingOptions] = useState(true);
 	const [error, setError] = useState('');
 	const [success, setSuccess] = useState('');
-	const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
+	const [ticketTypeId, setTicketTypeId] = useState<number | null>(null);
 	const [ticketTypeName, setTicketTypeName] = useState('General Admission');
 	const [ticketTypePrice, setTicketTypePrice] = useState('25');
 	const [ticketTypeQuantity, setTicketTypeQuantity] = useState('100');
-	const [isCreatingTicketType, setIsCreatingTicketType] = useState(false);
-	const [ticketTypeError, setTicketTypeError] = useState('');
-	const [ticketTypeSuccess, setTicketTypeSuccess] = useState('');
 	const [showCreateEventForm, setShowCreateEventForm] = useState(false);
+	const [editingEventId, setEditingEventId] = useState<number | null>(null);
+	const [isLoadingEditEvent, setIsLoadingEditEvent] = useState(false);
 
 	const browserTimezone = useMemo(() => {
 		try {
@@ -157,6 +195,7 @@ const Dashboard = (): JSX.Element => {
 
 	const resetForm = () => {
 		setTitle('');
+		setShortDescription('');
 		setDescription('');
 		setStartDateTime('');
 		setEndDateTime('');
@@ -164,7 +203,109 @@ const Dashboard = (): JSX.Element => {
 		setCategoryId('');
 		setVenueId('');
 		setMaxCapacity('');
+		setTimezone(browserTimezone);
+		setTicketTypeId(null);
+		setTicketTypeName('General Admission');
+		setTicketTypePrice('25');
+		setTicketTypeQuantity('100');
 	};
+
+	const formatDateTimeForInput = (value: string): string => {
+		const parsed = new Date(value);
+		if (Number.isNaN(parsed.getTime())) {
+			return '';
+		}
+
+		const offsetMs = parsed.getTimezoneOffset() * 60000;
+		const local = new Date(parsed.getTime() - offsetMs);
+		return local.toISOString().slice(0, 16);
+	};
+
+	const clearEditMode = () => {
+		setEditingEventId(null);
+		setSearchParams({});
+	};
+
+	useEffect(() => {
+		const mode = searchParams.get('mode');
+		const eventIdValue = searchParams.get('eventId');
+
+		if (mode !== 'edit' || !eventIdValue) {
+			return;
+		}
+
+		const parsedEventId = Number(eventIdValue);
+		if (!Number.isInteger(parsedEventId) || parsedEventId < 1 || !token) {
+			return;
+		}
+
+		let active = true;
+		const loadEditEvent = async () => {
+			setIsLoadingEditEvent(true);
+			setError('');
+			setSuccess('');
+
+			try {
+				const response = await api.get(`/events/manage/events/${parsedEventId}`, {
+					headers: getAuthHeader(token)
+				});
+
+				if (!active) {
+					return;
+				}
+
+				const event = response.data.event as EditableEvent;
+				setEditingEventId(event.id);
+				setTitle(event.title || '');
+				setShortDescription(event.shortDescription || '');
+				setDescription(event.description || '');
+				setStartDateTime(formatDateTimeForInput(event.startDateTime));
+				setEndDateTime(formatDateTimeForInput(event.endDateTime));
+				setTimezone(event.timezone || 'UTC');
+				setStatus(event.status || 'draft');
+				setCategoryId(event.categoryId ? String(event.categoryId) : '');
+				setVenueId(event.venueId ? String(event.venueId) : '');
+				setMaxCapacity(event.maxCapacity ? String(event.maxCapacity) : '');
+
+				const firstTicketType = event.ticketTypes?.[0];
+				if (firstTicketType) {
+					setTicketTypeId(firstTicketType.id);
+					setTicketTypeName(firstTicketType.name || 'General Admission');
+					setTicketTypePrice(String(firstTicketType.price ?? 25));
+					setTicketTypeQuantity(String(firstTicketType.quantity ?? 100));
+				} else {
+					setTicketTypeId(null);
+					setTicketTypeName('General Admission');
+					setTicketTypePrice('25');
+					setTicketTypeQuantity('100');
+				}
+
+				setShowCreateEventForm(true);
+			} catch (loadError) {
+				if (!active) {
+					return;
+				}
+
+				if (axios.isAxiosError(loadError)) {
+					const message =
+						(loadError.response?.data as { message?: string } | undefined)?.message || 'Unable to load event for editing';
+					setError(message);
+				} else {
+					setError('Unable to load event for editing');
+				}
+			} finally {
+				if (active) {
+					setIsLoadingEditEvent(false);
+				}
+			}
+		};
+
+		loadEditEvent();
+
+		return () => {
+			active = false;
+		};
+	}, [searchParams, token]);
 
 	const onSubmit = async (event: React.FormEvent) => {
 		event.preventDefault();
@@ -176,15 +317,17 @@ const Dashboard = (): JSX.Element => {
 		setIsSubmitting(true);
 		setError('');
 		setSuccess('');
-		setCreatedEvent(null);
-		setTicketTypeError('');
-		setTicketTypeSuccess('');
 
 		try {
-			const response = await api.post(
-				'/events',
-				{
+			const method = editingEventId ? 'put' : 'post';
+			const endpoint = editingEventId ? `/events/${editingEventId}` : '/events';
+			const response = await api.request({
+				method,
+				url: endpoint,
+				headers: getAuthHeader(token),
+				data: {
 					title,
+					shortDescription: shortDescription || null,
 					description,
 					startDateTime,
 					endDateTime,
@@ -193,13 +336,49 @@ const Dashboard = (): JSX.Element => {
 					categoryId: categoryId ? Number(categoryId) : null,
 					venueId: venueId ? Number(venueId) : null,
 					maxCapacity: maxCapacity ? Number(maxCapacity) : null
-				},
-				{ headers: getAuthHeader(token) }
+				}
+			});
+
+			const eventPayload = response.data.event as EditableEvent;
+			const savedEventId = Number(eventPayload.id);
+			if (!Number.isInteger(savedEventId) || savedEventId < 1) {
+				throw new Error('Invalid event id returned from server');
+			}
+
+			const ticketPayload = {
+				name: ticketTypeName,
+				price: Number(ticketTypePrice),
+				quantity: Number(ticketTypeQuantity)
+			};
+
+			if (editingEventId && ticketTypeId) {
+				await api.put(`/events/${savedEventId}/ticket-types/${ticketTypeId}`, ticketPayload, {
+					headers: getAuthHeader(token)
+				});
+			} else {
+				const ticketResponse = await api.post(`/events/${savedEventId}/ticket-types`, ticketPayload, {
+					headers: getAuthHeader(token)
+				});
+				const createdTicket = ticketResponse.data.ticketType as EditableTicketType;
+				if (createdTicket?.id) {
+					setTicketTypeId(createdTicket.id);
+				}
+			}
+
+			setSuccess(
+				editingEventId
+					? `Event and ticket details for \"${eventPayload.title}\" updated successfully.`
+					: `Event and ticket details for \"${eventPayload.title}\" created successfully.`
 			);
 
-			const created = response.data.event as CreatedEvent;
-			setCreatedEvent(created);
-			setSuccess(`Event \"${created.title}\" created successfully.`);
+			if (editingEventId) {
+				clearEditMode();
+				setShowCreateEventForm(false);
+			} else {
+				setEditingEventId(savedEventId);
+				setSearchParams({ mode: 'edit', eventId: String(savedEventId) });
+			}
+
 			resetForm();
 			await loadManagedEvents();
 		} catch (submitError) {
@@ -215,49 +394,6 @@ const Dashboard = (): JSX.Element => {
 		}
 	};
 
-	const onCreateTicketType = async (event: React.FormEvent) => {
-		event.preventDefault();
-		if (!token) {
-			setTicketTypeError('You are not authenticated');
-			return;
-		}
-
-		if (!createdEvent) {
-			setTicketTypeError('Create an event first');
-			return;
-		}
-
-		setIsCreatingTicketType(true);
-		setTicketTypeError('');
-		setTicketTypeSuccess('');
-
-		try {
-			const response = await api.post(
-				`/events/${createdEvent.id}/ticket-types`,
-				{
-					name: ticketTypeName,
-					price: Number(ticketTypePrice),
-					quantity: Number(ticketTypeQuantity)
-				},
-				{ headers: getAuthHeader(token) }
-			);
-
-			const created = response.data.ticketType as CreatedTicketType;
-			setTicketTypeSuccess(`Ticket type \"${created.name}\" created successfully.`);
-			await loadManagedEvents();
-		} catch (submitError) {
-			if (axios.isAxiosError(submitError)) {
-				const payload = submitError.response?.data as { message?: string; errors?: Array<{ msg: string }> } | undefined;
-				const validationMessage = payload?.errors?.[0]?.msg;
-				setTicketTypeError(validationMessage || payload?.message || 'Failed to create ticket type');
-			} else {
-				setTicketTypeError('Failed to create ticket type');
-			}
-		} finally {
-			setIsCreatingTicketType(false);
-		}
-	};
-
 	return (
 		<section>
 			<h1 className="page-title">{user?.role === 'admin' ? 'Admin Dashboard' : 'Organizer Dashboard'}</h1>
@@ -268,11 +404,23 @@ const Dashboard = (): JSX.Element => {
 					<button
 						type="button"
 						className="action-btn action-btn--primary"
-						onClick={() => setShowCreateEventForm((current) => !current)}
+						onClick={() => {
+							setShowCreateEventForm((current) => {
+								const next = !current;
+								if (!next) {
+									clearEditMode();
+									resetForm();
+									setEditingEventId(null);
+								}
+								return next;
+							});
+						}}
 					>
 						{showCreateEventForm ? 'Hide Create Event' : 'Create New Event'}
 					</button>
 				</div>
+
+				{isLoadingEditEvent ? <p>Loading event editor...</p> : null}
 
 				{isLoadingManagedEvents ? <p>Loading events...</p> : null}
 				{!isLoadingManagedEvents && managedEvents.length === 0 ? <p>No events found yet.</p> : null}
@@ -282,8 +430,7 @@ const Dashboard = (): JSX.Element => {
 						<div>
 							<strong>{eventItem.title}</strong>
 							<p className="event-card__meta" style={{ margin: 0 }}>
-								Status: {eventItem.status} | {new Date(eventItem.startDateTime).toLocaleString()} to{' '}
-								{new Date(eventItem.endDateTime).toLocaleString()}
+								Status: {eventItem.status} | {formatEventRange(eventItem.startDateTime, eventItem.endDateTime)}
 							</p>
 						</div>
 						<div>
@@ -303,8 +450,8 @@ const Dashboard = (): JSX.Element => {
 			{showCreateEventForm ? (
 				<div className="event-grid">
 					<article className="panel-card">
-						<h2>Create Event</h2>
-						<p>Publish a new event that appears in the public event catalog.</p>
+						<h2>{editingEventId ? 'Edit Event' : 'Create Event'}</h2>
+						<p>Use one form to manage both event details and ticket details.</p>
 
 						<form className="auth-card" onSubmit={onSubmit}>
 							<label htmlFor="event-title">
@@ -315,6 +462,17 @@ const Dashboard = (): JSX.Element => {
 									value={title}
 									onChange={(eventInput) => setTitle(eventInput.target.value)}
 									required
+								/>
+							</label>
+
+							<label htmlFor="event-short-description">
+								Short Description (optional)
+								<input
+									id="event-short-description"
+									type="text"
+									value={shortDescription}
+									onChange={(eventInput) => setShortDescription(eventInput.target.value)}
+									maxLength={500}
 								/>
 							</label>
 
@@ -371,8 +529,8 @@ const Dashboard = (): JSX.Element => {
 										value={status}
 										onChange={(eventInput) => setStatus(eventInput.target.value as 'draft' | 'published')}
 									>
-										<option value="draft">Draft</option>
-										<option value="published">Published</option>
+										<option value="draft">draft</option>
+										<option value="published">published</option>
 									</select>
 								</label>
 							</div>
@@ -424,73 +582,67 @@ const Dashboard = (): JSX.Element => {
 								/>
 							</label>
 
+							<h3 style={{ marginBottom: 0 }}>Ticket Details</h3>
+							<div className="grid-two">
+								<label htmlFor="ticket-type-name">
+									Ticket Type Name
+									<input
+										id="ticket-type-name"
+										type="text"
+										value={ticketTypeName}
+										onChange={(eventInput) => setTicketTypeName(eventInput.target.value)}
+										required
+									/>
+								</label>
+
+								<label htmlFor="ticket-type-price">
+									Price
+									<input
+										id="ticket-type-price"
+										type="number"
+										min={0.01}
+										step={0.01}
+										value={ticketTypePrice}
+										onChange={(eventInput) => setTicketTypePrice(eventInput.target.value)}
+										required
+									/>
+								</label>
+							</div>
+
+							<label htmlFor="ticket-type-quantity">
+								Quantity
+								<input
+									id="ticket-type-quantity"
+									type="number"
+									min={1}
+									value={ticketTypeQuantity}
+									onChange={(eventInput) => setTicketTypeQuantity(eventInput.target.value)}
+									required
+								/>
+							</label>
+
 							{error ? <p className="error-text">{error}</p> : null}
 							{success ? <p>{success}</p> : null}
 
 							<button className="action-btn action-btn--primary" type="submit" disabled={isSubmitting || isLoadingOptions}>
-								{isSubmitting ? 'Creating Event...' : 'Create Event'}
+								{isSubmitting ? (editingEventId ? 'Saving Event...' : 'Creating Event...') : editingEventId ? 'Save Event' : 'Create Event'}
 							</button>
+
+							{editingEventId ? (
+								<button
+									type="button"
+									className="action-btn action-btn--ghost"
+									onClick={() => {
+										clearEditMode();
+										setEditingEventId(null);
+										resetForm();
+										setShowCreateEventForm(false);
+									}}
+								>
+									Cancel Edit
+								</button>
+							) : null}
 						</form>
-					</article>
-
-					<article className="panel-card">
-						<h2>Next Steps</h2>
-						<p>After creating the event, define ticket tiers and pricing for sales.</p>
-						{createdEvent ? (
-							<>
-								<p>
-									Created: <strong>{createdEvent.title}</strong>. View at{' '}
-									<Link to={`/events/${createdEvent.slug}`}>/events/{createdEvent.slug}</Link>
-								</p>
-
-								<form className="auth-card" onSubmit={onCreateTicketType}>
-									<label htmlFor="ticket-type-name">
-										Ticket Type Name
-										<input
-											id="ticket-type-name"
-											type="text"
-											value={ticketTypeName}
-											onChange={(eventInput) => setTicketTypeName(eventInput.target.value)}
-											required
-										/>
-									</label>
-
-									<div className="grid-two">
-										<label htmlFor="ticket-type-price">
-											Price
-											<input
-												id="ticket-type-price"
-												type="number"
-												min={0.01}
-												step={0.01}
-												value={ticketTypePrice}
-												onChange={(eventInput) => setTicketTypePrice(eventInput.target.value)}
-												required
-											/>
-										</label>
-
-										<label htmlFor="ticket-type-quantity">
-											Quantity
-											<input
-												id="ticket-type-quantity"
-												type="number"
-												min={1}
-												value={ticketTypeQuantity}
-												onChange={(eventInput) => setTicketTypeQuantity(eventInput.target.value)}
-												required
-											/>
-										</label>
-									</div>
-
-									{ticketTypeError ? <p className="error-text">{ticketTypeError}</p> : null}
-									{ticketTypeSuccess ? <p>{ticketTypeSuccess}</p> : null}
-
-									<button className="action-btn action-btn--primary" type="submit" disabled={isCreatingTicketType}>
-										{isCreatingTicketType ? 'Creating Ticket Type...' : 'Create Ticket Type'}
-									</button>
-								</form>
-							</>
-						) : null}
 					</article>
 				</div>
 			) : null}

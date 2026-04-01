@@ -92,6 +92,30 @@ const ensureUniqueSlug = async (baseSlug: string) => {
   return slug;
 };
 
+const canManageEvent = (req: AuthenticatedRequest, organizerId: number): boolean => {
+  return req.user?.role === 'admin' || organizerId === req.user?.userId;
+};
+
+const eventValidationRules = [
+  body('title').trim().isLength({ min: 3, max: 200 }),
+  body('description').trim().isLength({ min: 10 }),
+  body('startDateTime').isISO8601(),
+  body('endDateTime').isISO8601(),
+  body('timezone').optional().isLength({ min: 2, max: 50 }),
+  body('status').optional().isIn(['draft', 'published']),
+  body('isPublic').optional().isBoolean(),
+  body('categoryId').optional({ nullable: true }).isInt({ min: 1 }),
+  body('venueId').optional({ nullable: true }).isInt({ min: 1 }),
+  body('maxCapacity').optional({ nullable: true }).isInt({ min: 1 })
+];
+
+const ticketTypeValidationRules = [
+  body('name').trim().isLength({ min: 2, max: 100 }),
+  body('price').isFloat({ gt: 0 }),
+  body('quantity').isInt({ min: 1 }),
+  body('isActive').optional().isBoolean()
+];
+
 // Organizer helpers for event creation form
 router.get('/meta/options', authenticate, ensureOrganizer, async (_req: AuthenticatedRequest, res: Response) => {
   try {
@@ -113,18 +137,7 @@ router.get('/meta/options', authenticate, ensureOrganizer, async (_req: Authenti
   }
 });
 
-router.post('/', authenticate, ensureOrganizer, [
-  body('title').trim().isLength({ min: 3, max: 200 }),
-  body('description').trim().isLength({ min: 10 }),
-  body('startDateTime').isISO8601(),
-  body('endDateTime').isISO8601(),
-  body('timezone').optional().isLength({ min: 2, max: 50 }),
-  body('status').optional().isIn(['draft', 'published']),
-  body('isPublic').optional().isBoolean(),
-  body('categoryId').optional({ nullable: true }).isInt({ min: 1 }),
-  body('venueId').optional({ nullable: true }).isInt({ min: 1 }),
-  body('maxCapacity').optional({ nullable: true }).isInt({ min: 1 })
-], async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', authenticate, ensureOrganizer, eventValidationRules, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -226,12 +239,7 @@ router.post('/', authenticate, ensureOrganizer, [
   }
 });
 
-router.post('/:eventId/ticket-types', authenticate, ensureOrganizer, [
-  body('name').trim().isLength({ min: 2, max: 100 }),
-  body('price').isFloat({ gt: 0 }),
-  body('quantity').isInt({ min: 1 }),
-  body('isActive').optional().isBoolean()
-], async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:eventId/ticket-types', authenticate, ensureOrganizer, ticketTypeValidationRules, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -280,6 +288,59 @@ router.post('/:eventId/ticket-types', authenticate, ensureOrganizer, [
     });
   } catch (error) {
     console.error('Create ticket type error:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.put('/:eventId/ticket-types/:ticketTypeId', authenticate, ensureOrganizer, ticketTypeValidationRules, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const eventId = Number(req.params.eventId);
+    const ticketTypeId = Number(req.params.ticketTypeId);
+    if (!Number.isInteger(eventId) || eventId < 1 || !Number.isInteger(ticketTypeId) || ticketTypeId < 1) {
+      return res.status(400).json({ message: 'Invalid id' });
+    }
+
+    const event = await Event.findByPk(eventId, {
+      attributes: ['id', 'organizerId']
+    });
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    if (!canManageEvent(req, Number((event as any).organizerId))) {
+      return res.status(403).json({ message: 'You can only manage ticket types for your own events' });
+    }
+
+    const ticketType = await TicketType.findOne({ where: { id: ticketTypeId, eventId } });
+    if (!ticketType) {
+      return res.status(404).json({ message: 'Ticket type not found' });
+    }
+
+    const { name, price, quantity, isActive } = req.body as {
+      name: string;
+      price: number;
+      quantity: number;
+      isActive?: boolean;
+    };
+
+    await ticketType.update({
+      name,
+      price: Number(price),
+      quantity: Number(quantity),
+      isActive: typeof isActive === 'boolean' ? isActive : true
+    });
+
+    return res.json({
+      message: 'Ticket type updated successfully',
+      ticketType
+    });
+  } catch (error) {
+    console.error('Update ticket type error:', error);
     return res.status(500).json({ message: 'Server error' });
   }
 });
@@ -426,6 +487,137 @@ router.get('/manage/events', authenticate, ensureOrganizer, async (req: Authenti
   } catch (error) {
     console.error('Get managed events error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/manage/events/:eventId', authenticate, ensureOrganizer, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const eventId = Number(req.params.eventId);
+    if (!Number.isInteger(eventId) || eventId < 1) {
+      return res.status(400).json({ message: 'Invalid event id' });
+    }
+
+    const event = await Event.findByPk(eventId, {
+      include: [
+        {
+          model: TicketType,
+          as: 'ticketTypes',
+          attributes: ['id', 'name', 'price', 'quantity', 'isActive', 'quantitySold'],
+          required: false
+        }
+      ]
+    });
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    if (!canManageEvent(req, Number((event as any).organizerId))) {
+      return res.status(403).json({ message: 'You can only manage your own events' });
+    }
+
+    return res.json({ event });
+  } catch (error) {
+    console.error('Get managed event error:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.put('/:eventId', authenticate, ensureOrganizer, eventValidationRules, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const eventId = Number(req.params.eventId);
+    if (!Number.isInteger(eventId) || eventId < 1) {
+      return res.status(400).json({ message: 'Invalid event id' });
+    }
+
+    const event = await Event.findByPk(eventId);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    if (!canManageEvent(req, Number((event as any).organizerId))) {
+      return res.status(403).json({ message: 'You can only manage your own events' });
+    }
+
+    const {
+      title,
+      description,
+      shortDescription,
+      startDateTime,
+      endDateTime,
+      timezone,
+      status,
+      isPublic,
+      categoryId,
+      venueId,
+      maxCapacity
+    } = req.body as {
+      title: string;
+      description: string;
+      shortDescription?: string;
+      startDateTime: string;
+      endDateTime: string;
+      timezone?: string;
+      status?: 'draft' | 'published';
+      isPublic?: boolean;
+      categoryId?: number | null;
+      venueId?: number | null;
+      maxCapacity?: number | null;
+    };
+
+    const start = new Date(startDateTime);
+    const end = new Date(endDateTime);
+    if (end <= start) {
+      return res.status(400).json({ message: 'End date must be after start date' });
+    }
+
+    if (categoryId) {
+      const category = await Category.findByPk(categoryId);
+      if (!category) {
+        return res.status(400).json({ message: 'Invalid category' });
+      }
+    }
+
+    if (venueId) {
+      const venue = await Venue.findByPk(venueId);
+      if (!venue) {
+        return res.status(400).json({ message: 'Invalid venue' });
+      }
+    }
+
+    const nextTitle = title.trim();
+    const currentTitle = String((event as any).title || '').trim();
+    let slug = (event as any).slug as string;
+    if (nextTitle.toLowerCase() !== currentTitle.toLowerCase()) {
+      slug = await ensureUniqueSlug(toSlug(nextTitle));
+    }
+
+    await event.update({
+      title,
+      description,
+      shortDescription: shortDescription || null,
+      slug,
+      startDateTime: start,
+      endDateTime: end,
+      timezone: timezone || 'UTC',
+      status: status || 'draft',
+      isPublic: typeof isPublic === 'boolean' ? isPublic : true,
+      categoryId: categoryId || null,
+      venueId: venueId || null,
+      maxCapacity: maxCapacity || null
+    });
+
+    return res.json({
+      message: 'Event updated successfully',
+      event
+    });
+  } catch (error) {
+    console.error('Update event error:', error);
+    return res.status(500).json({ message: 'Server error' });
   }
 });
 

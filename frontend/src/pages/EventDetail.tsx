@@ -29,6 +29,32 @@ type CartItem = {
 	quantity: number;
 };
 
+const formatEventRange = (startDateTime: string, endDateTime: string): string => {
+	const start = new Date(startDateTime);
+	const end = new Date(endDateTime);
+
+	const date = start.toLocaleDateString(undefined, {
+		month: 'numeric',
+		day: 'numeric',
+		year: 'numeric'
+	});
+
+	const startTimeWithMeridiem = start.toLocaleTimeString(undefined, {
+		hour: 'numeric',
+		minute: '2-digit'
+	});
+
+	const endTimeWithMeridiem = end.toLocaleTimeString(undefined, {
+		hour: 'numeric',
+		minute: '2-digit'
+	});
+
+	const startTime = startTimeWithMeridiem.replace(/\s?[AP]M$/i, '');
+	const endTime = endTimeWithMeridiem.replace(/\s?([AP]M)$/i, '$1').toUpperCase();
+
+	return `${date}, ${startTime}-${endTime}`;
+};
+
 const EventDetail = (): JSX.Element => {
 	const { slug } = useParams<{ slug: string }>();
 	const [eventData, setEventData] = useState<EventDetailResponse | null>(null);
@@ -104,12 +130,9 @@ const EventDetail = (): JSX.Element => {
 	return (
 		<section>
 			<h1 className="page-title">{eventData.title}</h1>
-			<p className="event-card__meta">
-				{new Date(eventData.startDateTime).toLocaleString()} to {new Date(eventData.endDateTime).toLocaleString()}
-			</p>
+			<p className="event-card__meta">{formatEventRange(eventData.startDateTime, eventData.endDateTime)}</p>
 			<p>{eventData.description}</p>
 
-			<h2 style={{ marginTop: 24 }}>Ticket Types</h2>
 			<div className="event-grid">
 				{(eventData.ticketTypes || []).map((ticketType) => {
 					const available = Number(ticketType.quantity) - Number(ticketType.quantitySold || 0);
