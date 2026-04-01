@@ -45,14 +45,7 @@ function App(): JSX.Element {
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/cart" 
-              element={
-                <ProtectedRoute>
-                  <Cart />
-                </ProtectedRoute>
-              } 
-            />
+            <Route path="/cart" element={<Cart />} />
             <Route 
               path="/checkout" 
               element={

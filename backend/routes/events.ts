@@ -219,7 +219,7 @@ router.post('/', authenticate, ensureOrganizer, eventValidationRules, async (req
         {
           model: Venue,
           as: 'venue',
-          attributes: ['id', 'name', 'city', 'country']
+          attributes: ['id', 'name', 'address', 'city', 'state', 'postalCode', 'country']
         },
         {
           model: Category,
@@ -403,7 +403,7 @@ router.get('/', async (req: Request, res: Response) => {
         {
           model: Venue,
           as: 'venue',
-          attributes: ['id', 'name', 'city', 'country']
+          attributes: ['id', 'name', 'address', 'city', 'state', 'postalCode', 'country']
         },
         {
           model: Category,
@@ -638,7 +638,7 @@ router.get('/featured/list', async (_req: Request, res: Response) => {
         {
           model: Venue,
           as: 'venue',
-          attributes: ['id', 'name', 'city', 'country']
+          attributes: ['id', 'name', 'address', 'city', 'state', 'postalCode', 'country']
         },
         {
           model: Category,

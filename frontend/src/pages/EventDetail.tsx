@@ -3,8 +3,7 @@ import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 import { api } from '../utils/api';
-
-const cartStorageKey = 'ticketing_cart';
+import { readStoredCart, StoredCartItem, writeStoredCart } from '../utils/cartStorage';
 
 type TicketType = {
 	id: number;
@@ -30,11 +29,6 @@ type EventDetailResponse = {
 		country?: string;
 	} | null;
 	ticketTypes?: TicketType[];
-};
-
-type CartItem = {
-	ticketTypeId: number;
-	quantity: number;
 };
 
 const formatEventRange = (startDateTime: string, endDateTime: string): string => {
@@ -68,6 +62,7 @@ const EventDetail = (): JSX.Element => {
 	const [eventData, setEventData] = useState<EventDetailResponse | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
+	const [quantitiesByTicketType, setQuantitiesByTicketType] = useState<Record<number, number>>({});
 
 	useEffect(() => {
 		let active = true;
@@ -102,29 +97,33 @@ const EventDetail = (): JSX.Element => {
 		};
 	}, [slug]);
 
-	const addToCart = (ticketTypeId: number) => {
+	const addToCart = (ticketTypeId: number, quantityToAdd: number) => {
 		if (!eventData) {
 			return;
 		}
 
-		const raw = localStorage.getItem(cartStorageKey);
-		const current = raw ? (JSON.parse(raw) as { eventId: number; items: CartItem[] }) : { eventId: eventData.id, items: [] };
+		if (quantityToAdd < 1) {
+			return;
+		}
+
+		const current = readStoredCart();
 		const matchingEvent = current.eventId === eventData.id;
 		const items = matchingEvent ? current.items : [];
 
 		const existingIndex = items.findIndex((item) => item.ticketTypeId === ticketTypeId);
-		let nextItems: CartItem[];
+		let nextItems: StoredCartItem[];
 
 		if (existingIndex >= 0) {
 			nextItems = items.map((item, index) =>
-				index === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
+				index === existingIndex ? { ...item, quantity: item.quantity + quantityToAdd } : item
 			);
 		} else {
-			nextItems = [...items, { ticketTypeId, quantity: 1 }];
+			nextItems = [...items, { ticketTypeId, quantity: quantityToAdd }];
 		}
 
-		localStorage.setItem(cartStorageKey, JSON.stringify({ eventId: eventData.id, items: nextItems }));
+		writeStoredCart(eventData.id, nextItems);
 		toast.success('Added to cart');
+		setQuantitiesByTicketType((current) => ({ ...current, [ticketTypeId]: 1 }));
 	};
 
 	if (isLoading) {
@@ -141,23 +140,48 @@ const EventDetail = (): JSX.Element => {
 			<p className="event-card__meta">{formatEventRange(eventData.startDateTime, eventData.endDateTime)}</p>
 			<p>{eventData.description}</p>
 
-			<div className="event-grid">
+			<div className="event-grid" style={{ marginTop: 16 }}>
 				{(eventData.ticketTypes || []).map((ticketType) => {
 					const available = Number(ticketType.quantity) - Number(ticketType.quantitySold || 0);
+					const maxSelectable = Math.min(5, Math.max(available, 1));
+					const selectedQuantity = Math.min(quantitiesByTicketType[ticketType.id] || 1, maxSelectable);
 
 					return (
 						<article className="event-card" key={ticketType.id}>
-							<h3>{ticketType.name}</h3>
+							<h2>Tickets</h2>
+							<p>{ticketType.name}</p>
 							<p>${Number(ticketType.price).toFixed(2)}</p>
 							<p className="event-card__meta">Available: {available}</p>
-							<button
-								type="button"
-								className="action-btn action-btn--primary"
-								onClick={() => addToCart(ticketType.id)}
-								disabled={available < 1}
-							>
-								{available < 1 ? 'Sold Out' : 'Add to Cart'}
-							</button>
+							<div className="inline-actions" style={{ alignItems: 'center' }}>
+								<button
+									type="button"
+									className="action-btn action-btn--primary"
+									onClick={() => addToCart(ticketType.id, selectedQuantity)}
+									disabled={available < 1}
+								>
+									{available < 1 ? 'Sold Out' : 'Add to Cart'}
+								</button>
+								<input
+									id={`quantity-${ticketType.id}`}
+									type="number"
+									min={1}
+									max={maxSelectable}
+									value={selectedQuantity}
+									onChange={(eventInput) => {
+										const nextValue = Number(eventInput.target.value);
+										const normalized = Number.isFinite(nextValue)
+											? Math.min(Math.max(1, nextValue), maxSelectable)
+											: 1;
+										setQuantitiesByTicketType((current) => ({
+											...current,
+											[ticketType.id]: normalized
+										}));
+									}}
+									disabled={available < 1}
+									style={{ width: '6ch', textAlign: 'center', paddingRight: 6 }}
+									aria-label="Quantity"
+								/>
+							</div>
 						</article>
 					);
 				})}

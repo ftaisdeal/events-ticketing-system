@@ -1,11 +1,27 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../contexts/AuthContext';
+import { CART_UPDATED_EVENT, hasStoredCartItems } from '../../utils/cartStorage';
 
 const Navbar = (): JSX.Element => {
 	const navigate = useNavigate();
 	const { isAuthenticated, user, logout } = useAuth();
+	const [cartHasItems, setCartHasItems] = useState<boolean>(() => hasStoredCartItems());
+
+	useEffect(() => {
+		const refreshCartState = () => {
+			setCartHasItems(hasStoredCartItems());
+		};
+
+		window.addEventListener('storage', refreshCartState);
+		window.addEventListener(CART_UPDATED_EVENT, refreshCartState as EventListener);
+
+		return () => {
+			window.removeEventListener('storage', refreshCartState);
+			window.removeEventListener(CART_UPDATED_EVENT, refreshCartState as EventListener);
+		};
+	}, []);
 
 	const handleLogout = () => {
 		logout();
@@ -39,7 +55,12 @@ const Navbar = (): JSX.Element => {
 						<>
 							{isAuthenticated ? (
 								<>
-									<NavLink to="/cart" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
+									<NavLink
+										to="/cart"
+										className={({ isActive }) =>
+											`nav-link${isActive ? ' nav-link--active' : ''}${!isActive && cartHasItems ? ' nav-link--cart-filled' : ''}`
+										}
+									>
 										Cart
 									</NavLink>
 									<NavLink to="/orders" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
@@ -69,6 +90,9 @@ const Navbar = (): JSX.Element => {
 						</>
 					) : (
 						<>
+							<NavLink to="/cart" className={`action-btn ${cartHasItems ? 'action-btn--primary' : 'action-btn--ghost'}`}>
+								Cart
+							</NavLink>
 							<NavLink to="/login" className="action-btn action-btn--ghost">
 								Log In
 							</NavLink>
