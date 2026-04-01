@@ -20,27 +20,46 @@ const Navbar = (): JSX.Element => {
 				</NavLink>
 
 				<nav className="site-nav" aria-label="Main navigation">
-					<NavLink to="/events" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
-						Events
-					</NavLink>
-					{isAuthenticated ? (
+					{isAuthenticated && user?.role === 'admin' ? (
 						<>
-							<NavLink to="/cart" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
-								Cart
+							<NavLink to="/dashboard" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
+								Dashboard
 							</NavLink>
-							<NavLink to="/orders" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
+							<NavLink to="/admin/orders" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
 								Orders
 							</NavLink>
-							<NavLink to="/profile" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
-								Profile
+							<NavLink to="/admin/finances" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
+								Finances
 							</NavLink>
-							{user?.role === 'organizer' || user?.role === 'admin' ? (
-								<NavLink to="/dashboard" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
-									Dashboard
-								</NavLink>
+							<NavLink to="/admin/venues" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
+								Venues
+							</NavLink>
+						</>
+					) : (
+						<>
+							<NavLink to="/events" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
+								Events
+							</NavLink>
+							{isAuthenticated ? (
+								<>
+									<NavLink to="/cart" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
+										Cart
+									</NavLink>
+									<NavLink to="/orders" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
+										Orders
+									</NavLink>
+									<NavLink to="/profile" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
+										Profile
+									</NavLink>
+									{user?.role === 'organizer' ? (
+										<NavLink to="/dashboard" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
+											Dashboard
+										</NavLink>
+									) : null}
+								</>
 							) : null}
 						</>
-					) : null}
+					)}
 				</nav>
 
 				<div className="site-actions">

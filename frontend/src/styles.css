@@ -214,6 +214,10 @@ a {
   gap: 14px;
 }
 
+.events-list {
+  grid-template-columns: 1fr;
+}
+
 .event-card,
 .panel-card {
   padding: 16px;

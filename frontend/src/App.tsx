@@ -14,6 +14,9 @@ import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import Orders from './pages/Orders';
 import Dashboard from './pages/Dashboard/Dashboard';
+import AdminOrders from './pages/Admin/Orders';
+import AdminFinances from './pages/Admin/Finances';
+import AdminVenues from './pages/Admin/Venues';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 
 const primaryOrganizerEmail = import.meta.env.VITE_PRIMARY_ORGANIZER_EMAIL as string | undefined;
@@ -77,6 +80,31 @@ function App(): JSX.Element {
                   <Dashboard />
                 </ProtectedRoute>
               } 
+            />
+
+            <Route
+              path="/admin/orders"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminOrders />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/finances"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminFinances />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/venues"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminVenues />
+                </ProtectedRoute>
+              }
             />
           </Routes>
         </Container>

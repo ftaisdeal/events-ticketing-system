@@ -57,7 +57,7 @@ const Events = (): JSX.Element => {
 			{isLoading ? <p>Loading events...</p> : null}
 			{error ? <p className="error-text">{error}</p> : null}
 
-			<div className="event-grid">
+			<div className="event-grid events-list">
 				{events.map((event) => (
 					<article className="event-card" key={event.id}>
 						<p className="event-card__meta">
