@@ -108,12 +108,12 @@ a {
 }
 
 .welcome-chip {
-  border: 1px solid var(--line);
+  border: 1px solid #b7d9f7;
   border-radius: 999px;
   padding: 8px 12px;
   font-weight: 600;
-  color: var(--muted);
-  background: #fff;
+  color: #174a7a;
+  background: #e7f3ff;
 }
 
 .action-btn {
@@ -325,6 +325,12 @@ textarea {
     grid-template-columns: 1fr;
     justify-items: center;
     padding: 12px 0;
+    min-height: auto;
+    gap: 10px;
+  }
+
+  .site-header .page-title {
+    margin-bottom: 6px;
   }
 
   .hero {
@@ -333,6 +339,39 @@ textarea {
 }
 
 @media (max-width: 640px) {
+  .site-header__inner {
+    gap: 8px;
+    padding: 8px 0;
+  }
+
+  .site-nav {
+    gap: 6px;
+  }
+
+  .site-actions {
+    margin-top: 0;
+    gap: 8px;
+  }
+
+  .site-header .page-title {
+    margin-bottom: 4px;
+  }
+
+  h1 {
+    font-size: 1.65rem;
+    margin-top: 0;
+    margin-bottom: 10px;
+  }
+
+  .hero h1 {
+    font-size: 1.75rem;
+    margin: 6px 0 8px;
+  }
+
+  .page-title {
+    margin-bottom: 10px;
+  }
+
   .main-content {
     padding-top: 18px;
   }
@@ -345,5 +384,14 @@ textarea {
     width: 100%;
     justify-content: center;
     flex-wrap: wrap;
+  }
+
+  .site-footer__inner {
+    width: min(1120px, calc(100% - 20px));
+    padding: 12px 0;
+  }
+
+  .site-footer__inner p {
+    font-size: 0.9rem;
   }
 }

@@ -564,7 +564,7 @@ const Dashboard = (): JSX.Element => {
 										<option value="">No venue</option>
 										{venues.map((venue) => (
 											<option key={venue.id} value={String(venue.id)}>
-												{venue.name} ({venue.city}, {venue.country})
+												{venue.name}
 											</option>
 										))}
 									</select>

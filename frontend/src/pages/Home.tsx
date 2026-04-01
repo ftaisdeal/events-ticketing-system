@@ -16,6 +16,22 @@ type HomeEventRow = {
 	};
 };
 
+const formatHomeEventDateTime = (startDateTime: string): string => {
+	const start = new Date(startDateTime);
+	const date = start.toLocaleDateString(undefined, {
+		weekday: 'long',
+		month: 'long',
+		day: 'numeric',
+		year: 'numeric'
+	});
+	const time = start.toLocaleTimeString(undefined, {
+		hour: 'numeric',
+		minute: '2-digit'
+	});
+
+	return `${date}, ${time}`;
+};
+
 const Home = (): JSX.Element => {
 	const [events, setEvents] = useState<HomeEventRow[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -62,7 +78,7 @@ const Home = (): JSX.Element => {
 				{events.map((event) => (
 					<article className="event-card" key={event.id}>
 						<p className="event-card__meta">
-							{new Date(event.startDateTime).toLocaleString()} • {event.venue?.city || 'TBA'}
+							{formatHomeEventDateTime(event.startDateTime)} • {event.venue?.city || 'TBA'}
 						</p>
 						<h2>{event.title}</h2>
 						<p>{event.shortDescription || event.description || 'No short description provided yet.'}</p>
