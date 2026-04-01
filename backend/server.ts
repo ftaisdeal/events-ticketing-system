@@ -31,6 +31,78 @@ const isLocalDevOrigin = (origin: string): boolean => {
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
 };
 
+const expireStaleReservations = async () => {
+	try {
+		const { Order, TicketType, Payment, sequelize } = db;
+		const expiredOrders = await Order.findAll({
+			where: {
+				status: 'pending',
+				expiresAt: {
+					[db.Sequelize.Op.lt]: new Date()
+				}
+			}
+		});
+
+		for (const order of expiredOrders) {
+			const transaction = await sequelize.transaction();
+			try {
+				const lockedOrder = await Order.findByPk(order.id, {
+					transaction,
+					lock: transaction.LOCK.UPDATE
+				});
+
+				if (!lockedOrder || lockedOrder.status !== 'pending') {
+					await transaction.rollback();
+					continue;
+				}
+
+				const customerInfo = lockedOrder.customerInfo as { lineItems?: Array<{ ticketTypeId: number; quantity: number }> } | null;
+				const lineItems = (customerInfo?.lineItems || []) as Array<{ ticketTypeId: number; quantity: number }>;
+
+				for (const item of lineItems) {
+					const ticketType = await TicketType.findByPk(item.ticketTypeId, {
+						transaction,
+						lock: transaction.LOCK.UPDATE
+					});
+					if (ticketType) {
+						const currentSold = Number(ticketType.quantitySold || 0);
+						const nextSold = Math.max(0, currentSold - item.quantity);
+						await ticketType.update({ quantitySold: nextSold }, { transaction });
+					}
+				}
+
+				await lockedOrder.update({ status: 'expired', expiresAt: null }, { transaction });
+				await Payment.update(
+					{
+						status: 'expired',
+						failureReason: 'Reservation expired',
+						processedAt: new Date()
+					},
+					{
+						where: {
+							orderId: lockedOrder.id,
+							status: 'pending'
+						},
+						transaction
+					}
+				);
+
+				await transaction.commit();
+				console.log(`[Cleanup] Expired order ${order.id}`);
+			} catch (error) {
+				await transaction.rollback();
+				console.error(`[Cleanup] Error expiring order ${order.id}:`, error);
+			}
+		}
+
+		if (expiredOrders.length > 0) {
+			console.log(`[Cleanup] Expired ${expiredOrders.length} stale reservation(s)`);
+		}
+	} catch (error) {
+		console.error('[Cleanup] Error during expiration check:', error);
+	}
+};
+
 // Security middleware
 app.use(helmet());
 app.use(cors({
@@ -103,6 +175,10 @@ async function startServer() {
       await db.sequelize.sync();
       console.log('Database synchronized.');
     }
+
+    // Run initial cleanup and set interval every 5 minutes
+    await expireStaleReservations();
+    setInterval(expireStaleReservations, 5 * 60 * 1000);
     
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);

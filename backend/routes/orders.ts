@@ -9,7 +9,7 @@ const { Order, TicketType, Payment, sequelize, Sequelize } = db;
 const router = express.Router();
 
 const jwtSecret = process.env.JWT_SECRET || 'dev-secret';
-const reservationMinutes = Number(process.env.ORDER_RESERVATION_MINUTES || 15);
+const reservationMinutes = Number(process.env.ORDER_RESERVATION_MINUTES || 5);
 
 type LineItem = {
 	ticketTypeId: number;
@@ -76,6 +76,34 @@ const generateOrderNumber = () => {
 	return `ORD-${Date.now()}-${suffix}`;
 };
 
+const normalizeRequestedItems = (items: Array<{ ticketTypeId: number; quantity: number }>) => {
+	const quantityByTicketType = new Map<number, number>();
+
+	for (const item of items) {
+		const ticketTypeId = Number(item.ticketTypeId) || 0;
+		const quantity = Number(item.quantity) || 0;
+		if (ticketTypeId < 1 || quantity < 1) {
+			continue;
+		}
+
+		quantityByTicketType.set(ticketTypeId, (quantityByTicketType.get(ticketTypeId) || 0) + quantity);
+	}
+
+	return Array.from(quantityByTicketType.entries())
+		.map(([ticketTypeId, quantity]) => ({ ticketTypeId, quantity }))
+		.sort((a, b) => a.ticketTypeId - b.ticketTypeId);
+};
+
+const normalizeOrderLineItems = (lineItems: LineItem[]) => {
+	return lineItems
+		.map((item) => ({
+			ticketTypeId: Number(item.ticketTypeId) || 0,
+			quantity: Number(item.quantity) || 0
+		}))
+		.filter((item) => item.ticketTypeId > 0 && item.quantity > 0)
+		.sort((a, b) => a.ticketTypeId - b.ticketTypeId);
+};
+
 router.post('/reserve', authenticate, async (req: AuthenticatedRequest, res: Response) => {
 	const transaction = await sequelize.transaction();
 
@@ -94,6 +122,64 @@ router.post('/reserve', authenticate, async (req: AuthenticatedRequest, res: Res
 		if (!eventId || !Array.isArray(items) || items.length === 0) {
 			await transaction.rollback();
 			return res.status(400).json({ message: 'eventId and at least one ticket item are required' });
+		}
+
+		const normalizedEventId = Number(eventId) || 0;
+		if (normalizedEventId < 1) {
+			await transaction.rollback();
+			return res.status(400).json({ message: 'Invalid eventId' });
+		}
+
+		const requestedItemsSignature = JSON.stringify(normalizeRequestedItems(items));
+		const existingPendingOrders = await Order.findAll({
+			where: {
+				userId,
+				eventId: normalizedEventId,
+				status: 'pending',
+				expiresAt: {
+					[Sequelize.Op.gt]: new Date()
+				}
+			},
+			order: [['createdAt', 'DESC']],
+			transaction,
+			lock: transaction.LOCK.UPDATE
+		});
+
+		for (const existingOrder of existingPendingOrders) {
+			const existingItemsSignature = JSON.stringify(normalizeOrderLineItems(parseLineItemsFromOrder(existingOrder)));
+			if (existingItemsSignature !== requestedItemsSignature) {
+				continue;
+			}
+
+			let payment = await Payment.findOne({
+				where: {
+					orderId: existingOrder.id,
+					status: 'pending'
+				},
+				transaction,
+				lock: transaction.LOCK.UPDATE
+			});
+
+			if (!payment) {
+				payment = await Payment.create({
+					orderId: existingOrder.id,
+					amount: Number(existingOrder.totalAmount),
+					currency: String(existingOrder.currency || 'USD'),
+					provider: 'stripe',
+					status: 'pending',
+					metadata: {
+						lineItems: parseLineItemsFromOrder(existingOrder)
+					}
+				}, { transaction });
+			}
+
+			await transaction.commit();
+			return res.status(200).json({
+				order: existingOrder,
+				payment,
+				reservationExpiresAt: existingOrder.expiresAt,
+				reusedReservation: true
+			});
 		}
 
 		const lineItems: LineItem[] = [];
@@ -115,9 +201,9 @@ router.post('/reserve', authenticate, async (req: AuthenticatedRequest, res: Res
 				return res.status(404).json({ message: `Ticket type ${item.ticketTypeId} not found or inactive` });
 			}
 
-			if (Number(ticketType.eventId) !== Number(eventId)) {
+			if (Number(ticketType.eventId) !== normalizedEventId) {
 				await transaction.rollback();
-				return res.status(400).json({ message: `Ticket type ${item.ticketTypeId} does not belong to event ${eventId}` });
+				return res.status(400).json({ message: `Ticket type ${item.ticketTypeId} does not belong to event ${normalizedEventId}` });
 			}
 
 			const available = Number(ticketType.quantity) - Number(ticketType.quantitySold || 0);
@@ -140,7 +226,7 @@ router.post('/reserve', authenticate, async (req: AuthenticatedRequest, res: Res
 				ticketTypeId: Number(ticketType.id),
 				quantity: item.quantity,
 				unitPrice,
-				eventId: Number(eventId),
+				eventId: normalizedEventId,
 				ticketTypeName: String(ticketType.name)
 			});
 		}
@@ -149,7 +235,7 @@ router.post('/reserve', authenticate, async (req: AuthenticatedRequest, res: Res
 		const order = await Order.create({
 			orderNumber: generateOrderNumber(),
 			userId,
-			eventId,
+			eventId: normalizedEventId,
 			totalAmount,
 			currency: 'USD',
 			status: 'pending',
@@ -260,6 +346,64 @@ router.post('/:orderId/cancel', authenticate, async (req: AuthenticatedRequest, 
 		await transaction.rollback();
 		console.error('Cancel order error:', error);
 		return res.status(500).json({ message: 'Unable to cancel order' });
+	}
+});
+
+router.post('/:orderId/expire', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+	const transaction = await sequelize.transaction();
+
+	try {
+		const userId = req.user?.userId;
+		const orderId = Number(req.params.orderId);
+
+		const order = await Order.findByPk(orderId, {
+			transaction,
+			lock: transaction.LOCK.UPDATE
+		});
+
+		if (!order) {
+			await transaction.rollback();
+			return res.status(404).json({ message: 'Order not found' });
+		}
+
+		if (order.userId !== userId) {
+			await transaction.rollback();
+			return res.status(403).json({ message: 'Forbidden' });
+		}
+
+		if (order.status !== 'pending') {
+			await transaction.rollback();
+			return res.status(200).json({ message: 'Order already finalized', status: order.status });
+		}
+
+		await releaseReservedInventory(order, transaction);
+
+		await order.update({
+			status: 'expired',
+			expiresAt: null
+		}, { transaction });
+
+		await Payment.update(
+			{
+				status: 'expired',
+				failureReason: 'Reservation expired',
+				processedAt: new Date()
+			},
+			{
+				where: {
+					orderId,
+					status: { [Sequelize.Op.ne]: 'succeeded' }
+				},
+				transaction
+			}
+		);
+
+		await transaction.commit();
+		return res.json({ message: 'Order expired and inventory released' });
+	} catch (error) {
+		await transaction.rollback();
+		console.error('Expire order error:', error);
+		return res.status(500).json({ message: 'Unable to expire order' });
 	}
 });
 

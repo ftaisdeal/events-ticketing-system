@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../contexts/AuthContext';
-import { createPaymentIntent, reserveOrder } from '../utils/checkoutApi';
+import { createPaymentIntent, expireOrderReservation, reserveOrder } from '../utils/checkoutApi';
 import { api } from '../utils/api';
 import { CART_UPDATED_EVENT, readStoredCart, StoredCart } from '../utils/cartStorage';
 
@@ -14,6 +14,24 @@ type CheckoutEventSummary = {
 	endDateTime: string;
 };
 
+type CheckoutReservation = {
+	orderId: number;
+	reservationExpiresAt: string;
+};
+
+type CheckoutIntent = {
+	paymentIntentId: string;
+	clientSecret: string | null;
+};
+
+type CheckoutSessionState = {
+	cartSignature: string;
+	reservationResult: CheckoutReservation | null;
+	intentResult: CheckoutIntent | null;
+};
+
+const CHECKOUT_SESSION_KEY = 'ticketing_checkout_session';
+
 const Checkout = (): JSX.Element => {
 	const navigate = useNavigate();
 	const { token, isAuthenticated } = useAuth();
@@ -22,21 +40,72 @@ const Checkout = (): JSX.Element => {
 	const [eventSummary, setEventSummary] = useState<CheckoutEventSummary | null>(null);
 	const [isLoadingEvent, setIsLoadingEvent] = useState(false);
 	const [cart, setCart] = useState<StoredCart>(() => readStoredCart());
-	const [reservationResult, setReservationResult] = useState<{
-		orderId: number;
-		reservationExpiresAt: string;
-	} | null>(null);
-	const [intentResult, setIntentResult] = useState<{
-		paymentIntentId: string;
-		clientSecret: string | null;
-	} | null>(null);
+	const [reservationResult, setReservationResult] = useState<CheckoutReservation | null>(null);
+	const [intentResult, setIntentResult] = useState<CheckoutIntent | null>(null);
 	const [hasStartedCheckout, setHasStartedCheckout] = useState(false);
+	const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+	const [isSessionHydrated, setIsSessionHydrated] = useState(false);
 
 	const totalUnits = useMemo(
 		() => cart.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
 		[cart.items]
 	);
 	const hasValidCart = cart.eventId > 0 && totalUnits > 0;
+	const cartSignature = useMemo(() => {
+		const normalizedItems = cart.items
+			.map((item) => ({
+				ticketTypeId: Number(item.ticketTypeId) || 0,
+				quantity: Number(item.quantity) || 0
+			}))
+			.filter((item) => item.ticketTypeId > 0 && item.quantity > 0)
+			.sort((a, b) => a.ticketTypeId - b.ticketTypeId);
+
+		return JSON.stringify({
+			eventId: Number(cart.eventId) || 0,
+			items: normalizedItems
+		});
+	}, [cart.eventId, cart.items]);
+
+	// Countdown timer
+	useEffect(() => {
+		if (!reservationResult?.reservationExpiresAt) {
+			return;
+		}
+
+		let expirationHandled = false;
+
+		const interval = setInterval(() => {
+			const expiresAt = new Date(reservationResult.reservationExpiresAt).getTime();
+			const now = Date.now();
+			const remaining = Math.max(0, expiresAt - now);
+
+			setTimeRemaining(remaining);
+
+			if (remaining <= 0) {
+				clearInterval(interval);
+
+				if (expirationHandled) {
+					return;
+				}
+
+				expirationHandled = true;
+				void (async () => {
+					try {
+						if (token && reservationResult.orderId) {
+							await expireOrderReservation(token, { orderId: reservationResult.orderId });
+						}
+					} catch (_error) {
+						// Best effort status sync; redirect should still happen even if this request fails.
+					} finally {
+						sessionStorage.removeItem(CHECKOUT_SESSION_KEY);
+						navigate('/cart', { replace: true });
+					}
+				})();
+			}
+		}, 1000);
+
+		return () => clearInterval(interval);
+	}, [navigate, reservationResult, token]);
 
 	useEffect(() => {
 		const refreshCart = () => {
@@ -57,6 +126,43 @@ const Checkout = (): JSX.Element => {
 			navigate('/cart', { replace: true });
 		}
 	}, [hasValidCart, navigate]);
+
+	useEffect(() => {
+		if (!hasValidCart) {
+			sessionStorage.removeItem(CHECKOUT_SESSION_KEY);
+			setIsSessionHydrated(true);
+			return;
+		}
+
+		try {
+			const raw = sessionStorage.getItem(CHECKOUT_SESSION_KEY);
+			if (!raw) {
+				setIsSessionHydrated(true);
+				return;
+			}
+
+			const parsed = JSON.parse(raw) as CheckoutSessionState;
+			const signatureMatches = parsed.cartSignature === cartSignature;
+			const expirationMs = parsed.reservationResult?.reservationExpiresAt
+				? new Date(parsed.reservationResult.reservationExpiresAt).getTime()
+				: 0;
+			const isExpired = expirationMs > 0 && expirationMs <= Date.now();
+
+			if (!signatureMatches || isExpired) {
+				sessionStorage.removeItem(CHECKOUT_SESSION_KEY);
+				setIsSessionHydrated(true);
+				return;
+			}
+
+			setReservationResult(parsed.reservationResult || null);
+			setIntentResult(parsed.intentResult || null);
+			setHasStartedCheckout(Boolean(parsed.reservationResult || parsed.intentResult));
+		} catch (_error) {
+			sessionStorage.removeItem(CHECKOUT_SESSION_KEY);
+		} finally {
+			setIsSessionHydrated(true);
+		}
+	}, [cartSignature, hasValidCart]);
 
 	useEffect(() => {
 		let active = true;
@@ -123,7 +229,6 @@ const Checkout = (): JSX.Element => {
 
 	const runCheckout = async () => {
 		setError('');
-		setIntentResult(null);
 
 		if (!hasValidCart) {
 			setError('Cart is empty. Add items in Cart first.');
@@ -138,6 +243,7 @@ const Checkout = (): JSX.Element => {
 		setIsSubmitting(true);
 
 		try {
+			let nextReservation = reservationResult;
 			let orderId = reservationResult?.orderId;
 
 			if (!orderId) {
@@ -147,20 +253,31 @@ const Checkout = (): JSX.Element => {
 				});
 
 				orderId = reserve.order.id;
-				setReservationResult({
+				nextReservation = {
 					orderId: reserve.order.id,
 					reservationExpiresAt: reserve.reservationExpiresAt
-				});
+				};
+				setReservationResult(nextReservation);
 			}
 
 			const intent = await createPaymentIntent(token, {
 				orderId
 			});
 
-			setIntentResult({
+			const nextIntent = {
 				paymentIntentId: intent.paymentIntentId,
 				clientSecret: intent.clientSecret
-			});
+			};
+			setIntentResult(nextIntent);
+
+			sessionStorage.setItem(
+				CHECKOUT_SESSION_KEY,
+				JSON.stringify({
+					cartSignature,
+					reservationResult: nextReservation,
+					intentResult: nextIntent
+				} satisfies CheckoutSessionState)
+			);
 		} catch (requestError) {
 			if (axios.isAxiosError(requestError)) {
 				const message =
@@ -170,6 +287,9 @@ const Checkout = (): JSX.Element => {
 
 				if (status === 404 || status === 410 || message.toLowerCase().includes('pending')) {
 					setReservationResult(null);
+					setIntentResult(null);
+					setHasStartedCheckout(false);
+					sessionStorage.removeItem(CHECKOUT_SESSION_KEY);
 				}
 
 				setError(message);
@@ -182,13 +302,13 @@ const Checkout = (): JSX.Element => {
 	};
 
 	useEffect(() => {
-		if (!hasValidCart || !isAuthenticated || !token || hasStartedCheckout) {
+		if (!isSessionHydrated || !hasValidCart || !isAuthenticated || !token || hasStartedCheckout || intentResult) {
 			return;
 		}
 
 		setHasStartedCheckout(true);
 		void runCheckout();
-	}, [hasValidCart, isAuthenticated, token, hasStartedCheckout]);
+	}, [hasValidCart, hasStartedCheckout, intentResult, isAuthenticated, isSessionHydrated, token]);
 
 	return (
 		<section>
@@ -209,6 +329,12 @@ const Checkout = (): JSX.Element => {
 				</div>
 				{!hasValidCart ? <p>Cart is empty. Go to /cart and add items.</p> : null}
 				{isSubmitting ? <p>Preparing secure payment...</p> : null}
+				{reservationResult && timeRemaining !== null ? (
+					<p style={{ marginTop: 12, marginBottom: 0, color: timeRemaining < 60000 ? '#bf2f2f' : 'inherit' }}>
+						To claim your ticket{totalUnits === 1 ? '' : 's'}, you must complete your order within{' '}
+						<strong>{Math.floor(timeRemaining / 60000)}:{String(Math.floor((timeRemaining % 60000) / 1000)).padStart(2, '0')}</strong>
+					</p>
+				) : null}
 			</div>
 
 			<div className="inline-actions" style={{ marginTop: 16 }}>

@@ -84,7 +84,7 @@ const generateTicketNumber = () => {
 	return `TKT-${Date.now()}-${suffix}`;
 };
 
-const markOrderAsCancelled = async (order: any, reason: string) => {
+const markOrderAsCancelled = async (order: any, reason: string, status: 'cancelled' | 'expired' | 'failed' = 'cancelled') => {
 	const transaction = await sequelize.transaction();
 
 	try {
@@ -99,11 +99,11 @@ const markOrderAsCancelled = async (order: any, reason: string) => {
 		}
 
 		await releaseReservedInventory(lockedOrder, transaction);
-		await lockedOrder.update({ status: 'cancelled', expiresAt: null }, { transaction });
+		await lockedOrder.update({ status, expiresAt: null }, { transaction });
 
 		await Payment.update(
 			{
-				status: 'cancelled',
+				status,
 				failureReason: reason,
 				processedAt: new Date()
 			},
@@ -146,7 +146,7 @@ router.post('/create-intent', authenticate, async (req: AuthenticatedRequest, re
 		}
 
 		if (order.expiresAt && new Date(order.expiresAt).getTime() < Date.now()) {
-			await markOrderAsCancelled(order, 'Reservation expired before payment intent creation');
+			await markOrderAsCancelled(order, 'Reservation expired before payment intent creation', 'expired');
 			return res.status(410).json({ message: 'Reservation expired' });
 		}
 
@@ -242,7 +242,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
 				if (order.expiresAt && new Date(order.expiresAt).getTime() < Date.now()) {
 					await transaction.rollback();
-					await markOrderAsCancelled(order, 'Reservation expired before webhook confirmation');
+				await markOrderAsCancelled(order, 'Reservation expired before webhook confirmation', 'expired');
 					return res.status(200).json({ received: true, ignored: 'reservation expired' });
 				}
 
@@ -295,7 +295,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
 				});
 
 				if (order && order.status === 'pending') {
-					await markOrderAsCancelled(order, 'Payment failed or cancelled');
+					await markOrderAsCancelled(order, 'Payment failed or cancelled', 'failed');
 				}
 			}
 		}
@@ -319,7 +319,7 @@ router.post('/expire-reservations', async (_req: Request, res: Response) => {
 		});
 
 		for (const order of expiredOrders) {
-			await markOrderAsCancelled(order, 'Reservation expired');
+			await markOrderAsCancelled(order, 'Reservation expired', 'expired');
 		}
 
 		return res.json({

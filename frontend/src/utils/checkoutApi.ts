@@ -14,6 +14,10 @@ type CreateIntentPayload = {
   orderId: number;
 };
 
+type ExpireOrderPayload = {
+  orderId: number;
+};
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 const api = axios.create({
@@ -45,4 +49,11 @@ export const createPaymentIntent = async (token: string, payload: CreateIntentPa
     paymentIntentId: string;
     orderId: number;
   };
+};
+
+export const expireOrderReservation = async (token: string, payload: ExpireOrderPayload) => {
+  const { data } = await api.post(`/orders/${payload.orderId}/expire`, undefined, {
+    headers: authHeaders(token)
+  });
+  return data as { message: string; status?: string };
 };

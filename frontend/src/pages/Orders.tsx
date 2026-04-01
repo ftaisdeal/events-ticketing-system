@@ -63,6 +63,7 @@ const Orders = (): JSX.Element => {
 			<h1 className="page-title">My Orders</h1>
 			{isLoading ? <p>Loading orders...</p> : null}
 			{error ? <p className="error-text">{error}</p> : null}
+			{!isLoading && !error && orders.length === 0 ? <p>No orders made so far.</p> : null}
 
 			<div className="event-grid">
 				{orders.map((order) => (
