@@ -10,6 +10,10 @@ const AdminAddVenue = (): JSX.Element => {
 	const { token } = useAuth();
 	const [name, setName] = useState('');
 	const [address, setAddress] = useState('');
+	const [city, setCity] = useState('');
+	const [state, setState] = useState('');
+	const [country, setCountry] = useState('');
+	const [postalCode, setPostalCode] = useState('');
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState('');
 
@@ -24,7 +28,14 @@ const AdminAddVenue = (): JSX.Element => {
 		setError('');
 
 		try {
-			await api.post('/venues', { name, address: address || null }, {
+			await api.post('/venues', {
+				name,
+				address,
+				city,
+				state: state || null,
+				country,
+				postalCode: postalCode || null
+			}, {
 				headers: getAuthHeader(token)
 			});
 			navigate('/admin/venues', { replace: true });
@@ -57,14 +68,61 @@ const AdminAddVenue = (): JSX.Element => {
 					</label>
 
 					<label htmlFor="venue-address">
-						Address (optional)
+						Street Address
 						<input
 							id="venue-address"
 							type="text"
 							value={address}
 							onChange={(eventInput) => setAddress(eventInput.target.value)}
+							required
 						/>
 					</label>
+
+					<div className="grid-two">
+						<label htmlFor="venue-city">
+							City
+							<input
+								id="venue-city"
+								type="text"
+								value={city}
+								onChange={(eventInput) => setCity(eventInput.target.value)}
+								required
+							/>
+						</label>
+
+						<label htmlFor="venue-state">
+							State (optional)
+							<input
+								id="venue-state"
+								type="text"
+								value={state}
+								onChange={(eventInput) => setState(eventInput.target.value)}
+							/>
+						</label>
+					</div>
+
+					<div className="grid-two">
+						<label htmlFor="venue-country">
+							Country
+							<input
+								id="venue-country"
+								type="text"
+								value={country}
+								onChange={(eventInput) => setCountry(eventInput.target.value)}
+								required
+							/>
+						</label>
+
+						<label htmlFor="venue-postal-code">
+							ZIP / Postal Code (optional)
+							<input
+								id="venue-postal-code"
+								type="text"
+								value={postalCode}
+								onChange={(eventInput) => setPostalCode(eventInput.target.value)}
+							/>
+						</label>
+					</div>
 
 					{error ? <p className="error-text">{error}</p> : null}
 

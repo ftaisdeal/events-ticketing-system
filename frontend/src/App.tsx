@@ -17,6 +17,7 @@ import Dashboard from './pages/Dashboard/Dashboard';
 import AdminOrders from './pages/Admin/Orders';
 import AdminFinances from './pages/Admin/Finances';
 import AdminVenues from './pages/Admin/Venues';
+import AdminAddVenue from './pages/Admin/AddVenue';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 
 const primaryOrganizerEmail = import.meta.env.VITE_PRIMARY_ORGANIZER_EMAIL as string | undefined;
@@ -103,6 +104,14 @@ function App(): JSX.Element {
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AdminVenues />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/venues/new"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminAddVenue />
                 </ProtectedRoute>
               }
             />

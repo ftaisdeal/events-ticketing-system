@@ -12,6 +12,7 @@ import orderRoutes from './routes/orders';
 import paymentRoutes from './routes/payments';
 import ticketRoutes from './routes/tickets';
 import userRoutes from './routes/users';
+import venueRoutes from './routes/venues';
 
 dotenv.config();
 
@@ -70,6 +71,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/venues', venueRoutes);
 
 // Health check
 app.get('/api/health', (_req: Request, res: Response) => {

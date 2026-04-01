@@ -44,7 +44,11 @@ const ensureAdmin = (req: AuthenticatedRequest, res: Response, next: NextFunctio
 
 router.post('/', authenticate, ensureAdmin, [
   body('name').trim().isLength({ min: 2, max: 200 }),
-  body('address').optional({ nullable: true }).trim().isLength({ max: 255 })
+  body('address').trim().isLength({ min: 3, max: 500 }),
+  body('city').trim().isLength({ min: 2, max: 100 }),
+  body('state').optional({ nullable: true }).trim().isLength({ max: 100 }),
+  body('country').trim().isLength({ min: 2, max: 100 }),
+  body('postalCode').optional({ nullable: true }).trim().isLength({ max: 20 })
 ], async (req: AuthenticatedRequest, res: Response) => {
   try {
     const errors = validationResult(req);
@@ -52,14 +56,22 @@ router.post('/', authenticate, ensureAdmin, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, address } = req.body as {
+    const { name, address, city, state, country, postalCode } = req.body as {
       name: string;
-      address?: string;
+      address: string;
+      city: string;
+      state?: string;
+      country: string;
+      postalCode?: string;
     };
 
     const venue = await Venue.create({
       name,
-      address: address || null
+      address,
+      city,
+      state: state || null,
+      country,
+      postalCode: postalCode || null
     });
 
     return res.status(201).json({
