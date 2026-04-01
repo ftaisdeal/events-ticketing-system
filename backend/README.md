@@ -9,7 +9,6 @@ Node.js/Express.js backend for the Events Ticketing System.
 - MySQL database with Sequelize ORM
 - Input validation and sanitization
 - Rate limiting and security headers
-- File upload support
 - Email notifications
 - Payment processing with Stripe
 - Comprehensive error handling
@@ -22,7 +21,6 @@ backend/
 ├── routes/           # API route handlers
 ├── middleware/       # Custom middleware
 ├── utils/           # Utility functions
-├── uploads/         # File upload directory
 ├── tests/           # Test files
 ├── server.js        # Main server file
 ├── package.json     # Dependencies

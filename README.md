@@ -19,7 +19,6 @@ ticketing/
 - **Database**: MySQL
 - **Authentication**: JWT
 - **Payment**: Stripe integration
-- **File Upload**: Multer + AWS S3
 
 ## Getting Started
 
