@@ -34,4 +34,6 @@ __pycache__/
 
 # editor settings
 .vscode/
+!.vscode/
+!.vscode/settings.json
 .idea/

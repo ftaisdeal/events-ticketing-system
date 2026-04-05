@@ -10,7 +10,7 @@ Node.js/Express.js backend for the Events Ticketing System.
 - Input validation and sanitization
 - Rate limiting and security headers
 - Email notifications
-- Payment processing with Stripe
+- Stripe PaymentIntent creation and webhook confirmation
 - Comprehensive error handling
 
 ## Project Structure
@@ -22,9 +22,9 @@ backend/
 ├── middleware/       # Custom middleware
 ├── utils/           # Utility functions
 ├── tests/           # Test files
-├── server.js        # Main server file
+├── server.ts        # Main server file
 ├── package.json     # Dependencies
-└── .env.example     # Environment variables template
+└── README.md        # This file
 ```
 
 ## Setup Instructions
@@ -44,7 +44,7 @@ Copy the environment template and configure your settings:
 cp .env.example .env
 ```
 
-Edit `.env` with your actual values:
+The example file contains:
 
 ```env
 # Database
@@ -60,11 +60,10 @@ JWT_SECRET=your_super_secret_jwt_key_here
 # Server
 PORT=3001
 NODE_ENV=development
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:5173
 
 # Stripe
 STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
-STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_signing_secret
 ORDER_RESERVATION_MINUTES=15
 
@@ -131,6 +130,21 @@ The server will start on http://localhost:3001
 - `POST /api/payments/webhook` - Stripe webhook
 - `POST /api/payments/expire-reservations` - Expire all pending reservations past `expiresAt`
 
+## Stripe Flow
+
+1. The frontend reserves inventory with `POST /api/orders/reserve`.
+2. The backend creates a pending order and pending payment record.
+3. The frontend calls `POST /api/payments/create-intent` to request a Stripe PaymentIntent.
+4. Stripe Elements confirms the payment in the browser using the returned client secret.
+5. Stripe sends `payment_intent.succeeded` or failure events to `POST /api/payments/webhook`.
+6. The webhook updates the payment, confirms the order, and creates tickets.
+
+For local testing, use Stripe CLI forwarding so the signed webhook secret matches your local server:
+
+```bash
+stripe listen --forward-to localhost:3001/api/payments/webhook
+```
+
 ## Database Models
 
 - **User** - User accounts and authentication
@@ -159,6 +173,11 @@ Run tests:
 npm test
 ```
 
+Run a typecheck:
+```bash
+npm run typecheck
+```
+
 ## Deployment
 
 1. Set `NODE_ENV=production`
@@ -173,7 +192,7 @@ npm test
 ### Adding New Routes
 
 1. Create route file in `routes/` directory
-2. Import and register in `server.js`
+2. Import and register in `server.ts`
 3. Add authentication middleware if needed
 4. Implement validation and error handling
 

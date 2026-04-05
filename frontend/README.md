@@ -1,14 +1,14 @@
 # Frontend React Application
 
-React.js frontend for the Events Ticketing System.
+Vite-powered React frontend for the Events Ticketing System.
 
 ## Features
 
-- Modern React with Hooks
+- Modern React with Hooks and TypeScript
 - Material-UI component library
 - React Router for navigation
 - React Query for data fetching
-- Stripe payment integration
+- Stripe Elements checkout flow
 - Responsive design
 - Authentication context
 - Form validation
@@ -23,11 +23,10 @@ frontend/
 │   ├── components/  # Reusable components
 │   ├── pages/       # Page components
 │   ├── contexts/    # React contexts
-│   ├── hooks/       # Custom hooks
-│   ├── services/    # API services
+│   ├── pages/       # Route-level pages
 │   ├── utils/       # Utility functions
-│   ├── App.js       # Main app component
-│   └── index.js     # App entry point
+│   ├── App.tsx      # Main app component
+│   └── index.tsx    # App entry point
 ├── package.json     # Dependencies
 └── README.md        # This file
 ```
@@ -43,47 +42,53 @@ npm install
 
 ### 2. Environment Configuration
 
-Create `.env` file in the frontend directory:
+Copy the example environment file and adjust the values for your setup:
+
+```bash
+cp .env.example .env
+```
+
+The example file contains:
 
 ```env
-REACT_APP_API_URL=http://localhost:3001/api
-REACT_APP_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
+VITE_API_BASE_URL=http://localhost:3001
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
+VITE_PRIMARY_ORGANIZER_EMAIL=organizer@example.com
 ```
 
 ### 3. Start Development Server
 
 ```bash
-npm start
+npm run dev
 ```
 
-The application will start on http://localhost:3000
+The application will start on http://localhost:5173
 
 ## Available Scripts
 
-- `npm start` - Start development server
-- `npm build` - Build for production
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview the production build locally
+- `npm run typecheck` - Run the TypeScript compiler without emitting files
 - `npm test` - Run tests
-- `npm eject` - Eject from Create React App (not recommended)
 
 ## Pages and Components
 
 ### Pages
-- **Home** - Landing page with featured events
+- **Home** - Upcoming events landing page
 - **Events** - Event listing with filters
 - **EventDetail** - Single event details and ticket selection
 - **Login/Register** - Authentication pages
 - **Profile** - User profile management
-- **Cart** - Shopping cart
-- **Checkout** - Payment processing
+- **Cart** - Shopping cart and ticket quantities
+- **Checkout** - Reservation countdown plus Stripe payment form
 - **Orders** - Order history
 - **Dashboard** - Event organizer dashboard
 
 ### Key Components
 - **Navbar** - Navigation header
 - **Footer** - Site footer
-- **EventCard** - Event display card
-- **TicketSelector** - Ticket quantity selection
-- **PaymentForm** - Stripe payment form
+- **StripePaymentForm** - Stripe CardElement payment form
 - **ProtectedRoute** - Authentication guard
 
 ## State Management
@@ -137,10 +142,12 @@ const EventsList = () => {
 
 ## Payment Integration
 
-- Stripe Elements for secure payment forms
-- Payment intent creation and confirmation
-- Error handling for payment failures
-- Order confirmation flow
+- Checkout first reserves inventory and creates a pending order
+- The frontend requests a Stripe PaymentIntent from the backend
+- Stripe Elements renders a secure card form in checkout
+- The browser confirms the payment with Stripe using the client secret
+- The backend webhook marks the order confirmed and issues tickets
+- The Orders page shows a temporary processing state while webhook confirmation settles
 
 ## Build and Deployment
 
@@ -151,13 +158,14 @@ npm run build
 
 ### Production Deployment
 1. Build the application
-2. Upload `build/` folder to web server
+2. Upload the generated `dist/` folder to your web server
 3. Configure web server for SPA routing
 4. Set production environment variables
 
 ### Environment Variables
-- `REACT_APP_API_URL` - Backend API URL
-- `REACT_APP_STRIPE_PUBLISHABLE_KEY` - Stripe public key
+- `VITE_API_BASE_URL` - Backend origin, for example `http://localhost:3001`
+- `VITE_STRIPE_PUBLISHABLE_KEY` - Stripe publishable key
+- `VITE_PRIMARY_ORGANIZER_EMAIL` - Optional organizer email used by protected dashboard routes
 
 ## Browser Support
 

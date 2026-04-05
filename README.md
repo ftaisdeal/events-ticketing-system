@@ -15,7 +15,7 @@ ticketing/
 ## Tech Stack
 
 - **Backend**: Node.js, Express.js, MySQL, Sequelize ORM
-- **Frontend**: React, Material-UI/Tailwind CSS
+- **Frontend**: Vite, React, TypeScript, Material-UI
 - **Database**: MySQL
 - **Authentication**: JWT
 - **Payment**: Stripe integration
@@ -38,8 +38,15 @@ ticketing/
 - Admin dashboard
 - Mobile-responsive design
 
+## Stripe Checkout Flow
+
+1. The cart is converted into a temporary ticket reservation.
+2. The backend creates a pending order and Stripe PaymentIntent.
+3. The frontend renders Stripe Elements for card entry.
+4. Stripe webhook confirmation finalizes the order and issues tickets.
+
 ## Development
 
 - Backend runs on http://localhost:3001
-- Frontend runs on http://localhost:3000
+- Frontend runs on http://localhost:5173
 - Database runs on localhost:3306

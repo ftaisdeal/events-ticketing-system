@@ -42,7 +42,7 @@
     "sequelize-cli": "^6.6.1",
     "supertest": "^7.1.4",
     "tsx": "^4.20.5",
-    "typescript": "^5.8.2"
+    "typescript": "^6.0.2"
   },
   "keywords": [
     "ticketing",
