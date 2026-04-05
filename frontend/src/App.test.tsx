@@ -8,6 +8,13 @@ import { vi } from 'vitest';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 
+vi.mock('./utils/api', () => ({
+  api: {
+    get: vi.fn().mockResolvedValue({ data: { events: [] } })
+  },
+  getAuthHeader: vi.fn(() => ({}))
+}));
+
 vi.mock('./components/Auth/ProtectedRoute', () => ({
   default: ({ children }: { children: ReactNode }) => (
     <div data-testid="protected-route">{children}</div>
@@ -15,6 +22,11 @@ vi.mock('./components/Auth/ProtectedRoute', () => ({
 }));
 
 describe('App', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
   const renderAtRoute = (route: string): void => {
     render(
       <MemoryRouter initialEntries={[route]}>
@@ -41,10 +53,15 @@ describe('App', () => {
   it('renders the home page on /', () => {
     renderAtRoute('/');
 
-    expect(screen.getByRole('heading', { name: 'Live Loud. Book Fast.' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Events' })).toBeInTheDocument();
   });
 
   it('wraps /checkout with ProtectedRoute guard', () => {
+		localStorage.setItem('ticketing_cart', JSON.stringify({
+			eventId: 1,
+			items: [{ ticketTypeId: 11, quantity: 2 }]
+		}));
+
     renderAtRoute('/checkout');
 
     expect(screen.getByTestId('protected-route')).toBeInTheDocument();

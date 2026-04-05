@@ -305,6 +305,37 @@ textarea {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+.payment-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.payment-field-shell {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.payment-banner {
+  margin-bottom: 16px;
+}
+
+.payment-banner--processing {
+  border-color: #dcb35b;
+  background: #fff7de;
+}
+
+.payment-banner--success {
+  border-color: #78c29c;
+  background: #ebfff3;
+}
+
+.payment-status-text {
+  margin: 8px 0 0;
+}
+
 .error-text {
   color: var(--error);
   font-weight: 600;

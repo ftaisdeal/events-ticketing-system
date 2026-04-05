@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../contexts/AuthContext';
 import { api, getAuthHeader } from '../utils/api';
@@ -16,16 +17,17 @@ type OrderRow = {
 
 const Orders = (): JSX.Element => {
 	const { token } = useAuth();
+	const [searchParams] = useSearchParams();
 	const [orders, setOrders] = useState<OrderRow[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
+	const paymentState = searchParams.get('payment');
+	const highlightedOrderId = Number(searchParams.get('orderId') || 0);
+	const isProcessingPayment = paymentState === 'processing' && highlightedOrderId > 0;
 
-	useEffect(() => {
-		let active = true;
-
-		const fetchOrders = async () => {
+	const fetchOrders = useCallback(async (activeRef: { current: boolean }) => {
 			if (!token) {
-				if (active) {
+				if (activeRef.current) {
 					setError('You are not authenticated.');
 					setIsLoading(false);
 				}
@@ -37,30 +39,68 @@ const Orders = (): JSX.Element => {
 					headers: getAuthHeader(token)
 				});
 
-				if (active) {
+				if (activeRef.current) {
 					setOrders((response.data.orders || []) as OrderRow[]);
+					setError('');
 				}
 			} catch (_error) {
-				if (active) {
+				if (activeRef.current) {
 					setError('Unable to fetch orders.');
 				}
 			} finally {
-				if (active) {
+				if (activeRef.current) {
 					setIsLoading(false);
 				}
 			}
-		};
+	}, [token]);
 
-		fetchOrders();
+	useEffect(() => {
+		const active = { current: true };
+
+		void fetchOrders(active);
 
 		return () => {
-			active = false;
+			active.current = false;
 		};
-	}, [token]);
+	}, [fetchOrders]);
+
+	useEffect(() => {
+		if (!isProcessingPayment || !token) {
+			return;
+		}
+
+		const active = { current: true };
+		const interval = window.setInterval(() => {
+			void fetchOrders(active);
+		}, 3000);
+
+		return () => {
+			active.current = false;
+			window.clearInterval(interval);
+		};
+	}, [fetchOrders, isProcessingPayment, token]);
+
+	const highlightedOrder = highlightedOrderId > 0
+		? orders.find((order) => order.id === highlightedOrderId)
+		: undefined;
+	const showProcessingBanner = isProcessingPayment && (!highlightedOrder || highlightedOrder.status === 'pending');
+	const showSuccessBanner = highlightedOrder?.status === 'confirmed';
 
 	return (
 		<section>
 			<h1 className="page-title">My Orders</h1>
+			{showProcessingBanner ? (
+				<div className="panel-card payment-banner payment-banner--processing">
+					<strong>Payment received.</strong>
+					<p className="payment-status-text">We are waiting for Stripe webhook confirmation before marking your order as confirmed.</p>
+				</div>
+			) : null}
+			{showSuccessBanner ? (
+				<div className="panel-card payment-banner payment-banner--success">
+					<strong>Order confirmed.</strong>
+					<p className="payment-status-text">Your tickets have been issued and this order is now confirmed.</p>
+				</div>
+			) : null}
 			{isLoading ? <p>Loading orders...</p> : null}
 			{error ? <p className="error-text">{error}</p> : null}
 			{!isLoading && !error && orders.length === 0 ? <p>No orders made so far.</p> : null}

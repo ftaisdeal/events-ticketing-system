@@ -1,11 +1,14 @@
 import axios from 'axios';
 import React, { useEffect, useMemo, useState } from 'react';
+import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 import { Link, useNavigate } from 'react-router-dom';
 
+import StripePaymentForm from '../components/Checkout/StripePaymentForm';
 import { useAuth } from '../contexts/AuthContext';
 import { createPaymentIntent, expireOrderReservation, reserveOrder } from '../utils/checkoutApi';
 import { api } from '../utils/api';
-import { CART_UPDATED_EVENT, readStoredCart, StoredCart } from '../utils/cartStorage';
+import { CART_UPDATED_EVENT, clearStoredCart, readStoredCart, StoredCart } from '../utils/cartStorage';
 
 type CheckoutEventSummary = {
 	id: number;
@@ -31,6 +34,8 @@ type CheckoutSessionState = {
 };
 
 const CHECKOUT_SESSION_KEY = 'ticketing_checkout_session';
+const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
+const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 
 const Checkout = (): JSX.Element => {
 	const navigate = useNavigate();
@@ -45,6 +50,7 @@ const Checkout = (): JSX.Element => {
 	const [hasStartedCheckout, setHasStartedCheckout] = useState(false);
 	const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 	const [isSessionHydrated, setIsSessionHydrated] = useState(false);
+	const [isRedirectingAfterPayment, setIsRedirectingAfterPayment] = useState(false);
 
 	const totalUnits = useMemo(
 		() => cart.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
@@ -65,6 +71,22 @@ const Checkout = (): JSX.Element => {
 			items: normalizedItems
 		});
 	}, [cart.eventId, cart.items]);
+	const stripeElementsOptions = useMemo(
+		() => ({
+			clientSecret: intentResult?.clientSecret || '',
+			appearance: {
+				theme: 'stripe' as const,
+				variables: {
+					colorPrimary: '#e45826',
+					colorText: '#1e1a16',
+					colorDanger: '#bf2f2f',
+					borderRadius: '12px',
+					fontFamily: 'Verdana, Arial, Helvetica, sans-serif'
+				}
+			}
+		}),
+		[intentResult?.clientSecret]
+	);
 
 	// Countdown timer
 	useEffect(() => {
@@ -122,10 +144,10 @@ const Checkout = (): JSX.Element => {
 	}, []);
 
 	useEffect(() => {
-		if (!hasValidCart) {
+		if (!hasValidCart && !isRedirectingAfterPayment) {
 			navigate('/cart', { replace: true });
 		}
-	}, [hasValidCart, navigate]);
+	}, [hasValidCart, isRedirectingAfterPayment, navigate]);
 
 	useEffect(() => {
 		if (!hasValidCart) {
@@ -301,6 +323,15 @@ const Checkout = (): JSX.Element => {
 		}
 	};
 
+	const handlePaymentSuccess = (paymentIntentId: string, status: string) => {
+		setIsRedirectingAfterPayment(true);
+		sessionStorage.removeItem(CHECKOUT_SESSION_KEY);
+		clearStoredCart();
+		navigate(`/orders?payment=processing&orderId=${reservationResult?.orderId || ''}&intent=${paymentIntentId}&status=${status}`, {
+			replace: true
+		});
+	};
+
 	useEffect(() => {
 		if (!isSessionHydrated || !hasValidCart || !isAuthenticated || !token || hasStartedCheckout || intentResult) {
 			return;
@@ -360,15 +391,25 @@ const Checkout = (): JSX.Element => {
 
 			{intentResult ? (
 				<div className="panel-card" style={{ marginTop: 16 }}>
-					<h3>PaymentIntent Created</h3>
-					<p>Payment Intent ID: {intentResult.paymentIntentId}</p>
-					<p>Client Secret:</p>
-					<textarea
-						readOnly
-						value={intentResult.clientSecret || ''}
-						rows={3}
-						className="mono-output"
-					/>
+					<h3>Complete Payment</h3>
+					<p className="event-card__meta">Payment Intent ID: {intentResult.paymentIntentId}</p>
+					{!stripePublishableKey || !stripePromise ? (
+						<p className="error-text" style={{ marginBottom: 0 }}>
+							Stripe publishable key is missing. Set VITE_STRIPE_PUBLISHABLE_KEY in the frontend environment.
+						</p>
+					) : intentResult.clientSecret ? (
+						<Elements stripe={stripePromise} options={stripeElementsOptions}>
+							<StripePaymentForm
+								clientSecret={intentResult.clientSecret}
+								onSuccess={handlePaymentSuccess}
+								disabled={isSubmitting || (timeRemaining !== null && timeRemaining <= 0)}
+							/>
+						</Elements>
+					) : (
+						<p className="error-text" style={{ marginBottom: 0 }}>
+							Payment setup is incomplete. Retry checkout to request a new secure payment session.
+						</p>
+					)}
 				</div>
 			) : null}
 		</section>
