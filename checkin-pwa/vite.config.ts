@@ -7,7 +7,14 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'icons/checkin-icon.svg', 'icons/checkin-maskable.svg'],
+      includeAssets: [
+        'favicon.ico',
+        'icons/apple-touch-icon.png',
+        'icons/pwa-192x192.png',
+        'icons/pwa-512x512.png',
+        'icons/pwa-maskable-512x512.png',
+        'startup/apple-splash-*.png'
+      ],
       manifest: {
         name: 'RDX Check-In',
         short_name: 'RDX Check-In',
@@ -19,14 +26,19 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: 'icons/checkin-icon.svg',
-            sizes: '512x512',
-            type: 'image/svg+xml'
+            src: 'icons/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
           },
           {
-            src: 'icons/checkin-maskable.svg',
+            src: 'icons/pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
+            type: 'image/png'
+          },
+          {
+            src: 'icons/pwa-maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
             purpose: 'maskable'
           }
         ]

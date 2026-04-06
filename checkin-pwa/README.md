@@ -41,6 +41,8 @@ If the backend is deployed separately, set `CHECKIN_PWA_URL` on the backend to t
 
 ## Production Notes
 
-- Replace the SVG app icons with real PNG icon assets before shipping.
+- iPhone install support depends on the Apple touch icon and Apple mobile web app meta tags in the HTML shell.
+- PNG app icons are now included for manifest and Apple home screen installs; replace them with final brand artwork if needed.
+- Apple startup images now cover the common modern and legacy iPhone screen classes with exact media-query mappings.
 - Serve over HTTPS so camera access and install prompts work consistently.
 - Keep this app on its own deploy target even if it stays in the same repository.

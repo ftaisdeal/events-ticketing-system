@@ -1,0 +1,16 @@
+<svg width="2208" height="1242" viewBox="0 0 2208 1242" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="2208" height="1242" fill="#F4EFE5"/>
+  <circle cx="1104" cy="621" r="330" fill="#E6D8BF" opacity="0.48"/>
+  <circle cx="1104" cy="621" r="248" fill="#111827" opacity="0.06"/>
+  <rect x="914" y="431" width="380" height="380" rx="78" fill="#111827"/>
+  <rect x="978" y="495" width="252" height="252" rx="36" fill="#F4EFE5"/>
+  <path d="M1029 569C1029 552.431 1042.43 539 1059 539H1112V583H1074V621H1029V569Z" fill="#111827"/>
+  <path d="M1179 569C1179 552.431 1165.57 539 1149 539H1096V583H1134V621H1179V569Z" fill="#111827"/>
+  <path d="M1029 673C1029 689.569 1042.43 703 1059 703H1112V659H1074V621H1029V673Z" fill="#111827"/>
+  <path d="M1096 659H1179V703H1096V659Z" fill="#111827"/>
+  <path d="M1096 621H1134V583H1179V621H1149V659H1096V621Z" fill="#D97706"/>
+  <rect x="1076" y="601" width="56" height="56" rx="12" fill="#D97706"/>
+  <circle cx="1104" cy="629" r="17" fill="#111827"/>
+  <text x="1104" y="1000" text-anchor="middle" fill="#111827" font-family="Avenir Next, SF Pro Display, sans-serif" font-size="74" font-weight="600">RDX Check In</text>
+  <text x="1104" y="1070" text-anchor="middle" fill="#6B7280" font-family="Avenir Next, SF Pro Text, sans-serif" font-size="29" font-weight="500" letter-spacing="5">STAFF CHECK-IN CONSOLE</text>
+</svg>
