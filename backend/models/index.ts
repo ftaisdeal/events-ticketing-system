@@ -6,6 +6,7 @@ import createEventModel from './Event';
 import createOrderModel from './Order';
 import createPaymentModel from './Payment';
 import createTicketModel from './Ticket';
+import createTicketCheckInModel from './TicketCheckIn';
 import createTicketTypeModel from './TicketType';
 import createUserModel from './User';
 import createVenueModel from './Venue';
@@ -39,6 +40,7 @@ db.Venue = createVenueModel(sequelize);
 db.TicketType = createTicketTypeModel(sequelize);
 db.Order = createOrderModel(sequelize);
 db.Ticket = createTicketModel(sequelize);
+db.TicketCheckIn = createTicketCheckInModel(sequelize);
 db.Payment = createPaymentModel(sequelize);
 db.Category = createCategoryModel(sequelize);
 

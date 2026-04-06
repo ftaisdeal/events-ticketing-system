@@ -123,6 +123,10 @@ const createEventModel = (sequelize: Sequelize) => {
       foreignKey: 'eventId',
       as: 'orders'
     });
+    Event.hasMany(models.TicketCheckIn, {
+      foreignKey: 'eventId',
+      as: 'checkIns'
+    });
   };
 
   return Event;

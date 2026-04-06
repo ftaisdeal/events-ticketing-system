@@ -25,6 +25,10 @@ const createTicketModel = (sequelize: Sequelize) => {
       foreignKey: 'ticketTypeId',
       as: 'ticketType'
     });
+    Ticket.hasOne(models.TicketCheckIn, {
+      foreignKey: 'ticketId',
+      as: 'checkIn'
+    });
   };
 
   return Ticket;

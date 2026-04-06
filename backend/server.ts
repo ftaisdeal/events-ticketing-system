@@ -20,11 +20,16 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 const isProduction = process.env.NODE_ENV === 'production';
 const configuredFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+const configuredCheckInUrl = process.env.CHECKIN_PWA_URL || 'http://localhost:5174';
 const staticAllowedOrigins = new Set([
   configuredFrontendUrl,
   configuredFrontendUrl.replace('localhost', '127.0.0.1'),
+	configuredCheckInUrl,
+	configuredCheckInUrl.replace('localhost', '127.0.0.1'),
   'http://localhost:5173',
-  'http://127.0.0.1:5173'
+	'http://127.0.0.1:5173',
+	'http://localhost:5174',
+	'http://127.0.0.1:5174'
 ]);
 
 const isLocalDevOrigin = (origin: string): boolean => {

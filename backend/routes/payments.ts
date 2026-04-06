@@ -263,13 +263,14 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
 				for (const lineItem of lineItems) {
 					for (let i = 0; i < lineItem.quantity; i += 1) {
+						const ticketNumber = generateTicketNumber();
 						await Ticket.create({
-							ticketNumber: generateTicketNumber(),
+							ticketNumber,
 							orderId: order.id,
 							ticketTypeId: lineItem.ticketTypeId,
 							price: lineItem.unitPrice,
 							status: 'valid',
-							qrCode: `order:${order.id};ticketType:${lineItem.ticketTypeId};seq:${i + 1}`
+							qrCode: `ticket:${ticketNumber}`
 						}, { transaction });
 					}
 				}

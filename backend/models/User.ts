@@ -84,6 +84,10 @@ const createUserModel = (sequelize: Sequelize) => {
       foreignKey: 'userId',
       as: 'orders'
     });
+    User.hasMany(models.TicketCheckIn, {
+      foreignKey: 'scannedByUserId',
+      as: 'ticketCheckIns'
+    });
   };
 
   return User;

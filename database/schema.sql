@@ -195,6 +195,26 @@ CREATE TABLE payments (
     INDEX idx_status (status)
 );
 
+-- Ticket check-ins table
+CREATE TABLE ticket_check_ins (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ticketId INT NOT NULL UNIQUE,
+    eventId INT NOT NULL,
+    scannedByUserId INT NOT NULL,
+    source VARCHAR(32) DEFAULT 'scanner',
+    deviceId VARCHAR(128),
+    notes VARCHAR(255),
+    metadata JSON,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (ticketId) REFERENCES tickets(id) ON DELETE CASCADE,
+    FOREIGN KEY (eventId) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (scannedByUserId) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_checkin_event (eventId),
+    INDEX idx_checkin_staff (scannedByUserId),
+    INDEX idx_checkin_source (source)
+);
+
 -- Insert sample categories
 INSERT INTO categories (name, slug, description, color, icon) VALUES
 ('Music', 'music', 'Concerts, festivals, and musical performances', '#e91e63', 'music_note'),
