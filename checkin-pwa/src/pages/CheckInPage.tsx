@@ -125,7 +125,9 @@ const CheckInPage = (): JSX.Element => {
     <main className="page-shell">
       <header className="page-header tight-header centered-header">
         <div className="centered-header-content checkin-header-content">
-          <div className="brand-title checkin-page-title"><span className="brand-mark">RDX</span> Check In</div>
+          <Link className="brand-link" to="/events">
+            <div className="brand-title checkin-page-title"><span className="brand-mark">RDX</span> Check In</div>
+          </Link>
           <p className="eyebrow checkin-eyebrow">{eventItem?.title || 'Check-in console'}</p>
         </div>
       </header>
@@ -141,13 +143,13 @@ const CheckInPage = (): JSX.Element => {
             <aside className="result-card">
               <div className={`result-state tone-${resultTone}`}>
                 <p className="eyebrow">Latest result</p>
-                <h2>{result ? (resultLabelByKey[result.result] || result.result) : 'Waiting for first scan'}</h2>
-                {result?.ticket ? <p>Ticket #{result.ticket.ticketNumber}</p> : <p>Use the camera or enter a code manually.</p>}
+                <h3>{result ? (resultLabelByKey[result.result] || result.result) : 'Waiting for first scan'}</h3>
+                {result?.ticket ? <p>Ticket #{result.ticket.ticketNumber}</p> : null}
               </div>
 
               <form className="manual-form" onSubmit={onManualSubmit}>
                 <label>
-                  <span>Manual code entry</span>
+                  <span className="manual-entry-label">Manual code entry</span>
                   <input
                     value={manualCode}
                     onChange={(event) => setManualCode(event.target.value)}

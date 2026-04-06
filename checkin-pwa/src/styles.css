@@ -134,6 +134,10 @@ button {
   text-align: center;
 }
 
+.brand-link {
+  display: inline-block;
+}
+
 .page-header .brand-title {
   font-size: 1.5rem;
   max-width: none;
@@ -164,6 +168,10 @@ button {
 .manual-form label {
   display: grid;
   gap: 8px;
+}
+
+.manual-entry-label {
+  text-align: center;
 }
 
 input {

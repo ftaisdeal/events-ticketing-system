@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/checkin-icon.svg', 'icons/checkin-maskable.svg'],
+      includeAssets: ['favicon.ico', 'icons/checkin-icon.svg', 'icons/checkin-maskable.svg'],
       manifest: {
         name: 'RDX Check-In',
         short_name: 'RDX Check-In',

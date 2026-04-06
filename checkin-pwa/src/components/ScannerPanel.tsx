@@ -170,9 +170,6 @@ const ScannerPanel = ({ onScan }: ScannerPanelProps): JSX.Element => {
   return (
     <section className="scanner-card">
       <div className="scanner-header">
-        <div>
-          <p className="eyebrow">Live Scanner</p>
-        </div>
         <button type="button" className="ghost-button" onClick={isScanning ? stopScanner : () => void startScanner()}>
           {isScanning ? 'Stop camera' : 'Start camera'}
         </button>
@@ -180,7 +177,6 @@ const ScannerPanel = ({ onScan }: ScannerPanelProps): JSX.Element => {
       <video ref={videoRef} className="scanner-video" muted playsInline />
       {error ? <p className="inline-error">{error}</p> : null}
       {statusMessage ? <p className="hint-text">{statusMessage}</p> : null}
-      <p className="hint-text">Continuous scan is de-duplicated for five seconds to avoid double reads at the door.</p>
     </section>
   );
 };
