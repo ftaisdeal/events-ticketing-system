@@ -13,6 +13,36 @@ type OrderRow = {
 	createdAt: string;
 	expiresAt?: string | null;
 	confirmedAt?: string | null;
+	payments?: Array<{
+		id: number;
+		status: string;
+		failureReason?: string | null;
+		processedAt?: string | null;
+		createdAt?: string;
+	}>;
+};
+
+const PAYMENT_FAILURE_STATUSES = new Set(['failed', 'cancelled']);
+
+const getLatestPayment = (order: OrderRow) => {
+	if (!Array.isArray(order.payments) || order.payments.length === 0) {
+		return null;
+	}
+
+	return [...order.payments].sort((left, right) => {
+		const leftTime = new Date(left.processedAt || left.createdAt || 0).getTime();
+		const rightTime = new Date(right.processedAt || right.createdAt || 0).getTime();
+		return rightTime - leftTime;
+	})[0];
+};
+
+const getPaymentFailureMessage = (order: OrderRow) => {
+	const latestPayment = getLatestPayment(order);
+	if (!latestPayment || !PAYMENT_FAILURE_STATUSES.has(latestPayment.status)) {
+		return null;
+	}
+
+	return latestPayment.failureReason || 'Payment could not be completed.';
 };
 
 const Orders = (): JSX.Element => {
@@ -83,8 +113,12 @@ const Orders = (): JSX.Element => {
 	const highlightedOrder = highlightedOrderId > 0
 		? orders.find((order) => order.id === highlightedOrderId)
 		: undefined;
+	const highlightedOrderLatestPayment = highlightedOrder ? getLatestPayment(highlightedOrder) : null;
+	const highlightedOrderFailureMessage = highlightedOrder ? getPaymentFailureMessage(highlightedOrder) : null;
 	const showProcessingBanner = isProcessingPayment && (!highlightedOrder || highlightedOrder.status === 'pending');
 	const showSuccessBanner = highlightedOrder?.status === 'confirmed';
+	const showRetryBanner = highlightedOrder?.status === 'pending'
+		&& Boolean(highlightedOrderLatestPayment && PAYMENT_FAILURE_STATUSES.has(highlightedOrderLatestPayment.status));
 
 	return (
 		<section>
@@ -99,6 +133,13 @@ const Orders = (): JSX.Element => {
 				<div className="panel-card payment-banner payment-banner--success">
 					<strong>Order confirmed.</strong>
 					<p className="payment-status-text">Your tickets have been issued and this order is now confirmed.</p>
+				</div>
+			) : null}
+			{showRetryBanner ? (
+				<div className="panel-card payment-banner">
+					<strong>Payment attempt failed.</strong>
+					<p className="payment-status-text">{highlightedOrderFailureMessage || 'This payment attempt did not complete successfully.'}</p>
+					<p className="payment-status-text">Your order is still pending until the reservation expires. Retry checkout with another card to complete it.</p>
 				</div>
 			) : null}
 			{isLoading ? <p>Loading orders...</p> : null}
@@ -116,6 +157,7 @@ const Orders = (): JSX.Element => {
 						<p className="event-card__meta">Placed: {new Date(order.createdAt).toLocaleString()}</p>
 						{order.expiresAt ? <p className="event-card__meta">Expires: {new Date(order.expiresAt).toLocaleString()}</p> : null}
 						{order.confirmedAt ? <p className="event-card__meta">Confirmed: {new Date(order.confirmedAt).toLocaleString()}</p> : null}
+						{getPaymentFailureMessage(order) ? <p className="event-card__meta">Latest payment attempt: {getPaymentFailureMessage(order)}</p> : null}
 					</article>
 				))}
 			</div>
