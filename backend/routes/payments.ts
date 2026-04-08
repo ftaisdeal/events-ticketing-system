@@ -152,6 +152,102 @@ const markOrderAsCancelled = async (order: any, reason: string, status: 'cancell
 	}
 };
 
+const finalizeSucceededPaymentIntent = async (intent: Stripe.PaymentIntent) => {
+	const transaction = await sequelize.transaction();
+	let confirmedOrderId: number | null = null;
+
+	try {
+		const payment = await Payment.findOne({
+			where: { paymentIntentId: intent.id },
+			transaction,
+			lock: transaction.LOCK.UPDATE
+		});
+
+		if (!payment) {
+			await transaction.rollback();
+			return { outcome: 'payment_not_found' as const };
+		}
+
+		if (payment.status === 'succeeded') {
+			await transaction.rollback();
+			await sendOrderConfirmationEmailIfNeeded(payment.orderId).catch((error) => {
+				console.error('Order confirmation email error:', error);
+			});
+			return {
+				outcome: 'already_processed' as const,
+				orderId: payment.orderId
+			};
+		}
+
+		const order = await Order.findByPk(payment.orderId, {
+			transaction,
+			lock: transaction.LOCK.UPDATE
+		});
+
+		if (!order) {
+			await transaction.rollback();
+			return { outcome: 'order_not_found' as const };
+		}
+
+		if (order.expiresAt && new Date(order.expiresAt).getTime() < Date.now()) {
+			await transaction.rollback();
+			await markOrderAsCancelled(order, 'Reservation expired before webhook confirmation', 'expired');
+			return {
+				outcome: 'reservation_expired' as const,
+				orderId: order.id
+			};
+		}
+
+		const lineItems = parseLineItemsFromOrder(order);
+
+		await payment.update({
+			status: 'succeeded',
+			transactionId: intent.latest_charge ? String(intent.latest_charge) : intent.id,
+			processedAt: new Date(),
+			failureReason: null
+		}, { transaction });
+
+		await order.update({
+			status: 'confirmed',
+			confirmedAt: new Date(),
+			expiresAt: null
+		}, { transaction });
+		confirmedOrderId = order.id;
+
+		for (const lineItem of lineItems) {
+			for (let i = 0; i < lineItem.quantity; i += 1) {
+				const ticketNumber = generateTicketNumber();
+				const shortCode = await generateTicketShortCode(transaction);
+				await Ticket.create({
+					ticketNumber,
+					shortCode,
+					orderId: order.id,
+					ticketTypeId: lineItem.ticketTypeId,
+					price: lineItem.unitPrice,
+					status: 'valid',
+					qrCode: `ticket:${ticketNumber}`
+				}, { transaction });
+			}
+		}
+
+		await transaction.commit();
+
+		if (confirmedOrderId) {
+			await sendOrderConfirmationEmailIfNeeded(confirmedOrderId).catch((error) => {
+				console.error('Order confirmation email error:', error);
+			});
+		}
+
+		return {
+			outcome: 'confirmed' as const,
+			orderId: confirmedOrderId
+		};
+	} catch (error) {
+		await transaction.rollback();
+		throw error;
+	}
+};
+
 router.post('/create-intent', authenticate, async (req: AuthenticatedRequest, res: Response) => {
 	try {
 		if (!stripe) {
@@ -219,6 +315,60 @@ router.post('/create-intent', authenticate, async (req: AuthenticatedRequest, re
 	}
 });
 
+router.post('/reconcile', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+	try {
+		if (!stripe) {
+			return res.status(503).json({ message: 'Stripe is not configured. Add STRIPE_SECRET_KEY.' });
+		}
+
+		const userId = req.user?.userId;
+		const { orderId, paymentIntentId } = req.body as { orderId?: number; paymentIntentId?: string };
+
+		if (!userId || !orderId) {
+			return res.status(400).json({ message: 'orderId is required' });
+		}
+
+		const order = await Order.findByPk(orderId);
+		if (!order || order.userId !== userId) {
+			return res.status(404).json({ message: 'Order not found' });
+		}
+
+		const payment = await Payment.findOne({ where: { orderId: order.id } });
+		const resolvedPaymentIntentId = String(paymentIntentId || payment?.paymentIntentId || '');
+
+		if (!resolvedPaymentIntentId) {
+			return res.json({
+				reconciled: false,
+				orderStatus: order.status,
+				paymentStatus: payment?.status || null,
+				paymentIntentStatus: null
+			});
+		}
+
+		const intent = await stripe.paymentIntents.retrieve(resolvedPaymentIntentId);
+		let reconcileOutcome: string | null = null;
+
+		if (intent.status === 'succeeded') {
+			const result = await finalizeSucceededPaymentIntent(intent);
+			reconcileOutcome = result.outcome;
+		}
+
+		const refreshedOrder = await Order.findByPk(order.id);
+		const refreshedPayment = await Payment.findOne({ where: { orderId: order.id } });
+
+		return res.json({
+			reconciled: reconcileOutcome === 'confirmed' || reconcileOutcome === 'already_processed',
+			reconcileOutcome,
+			orderStatus: refreshedOrder?.status || order.status,
+			paymentStatus: refreshedPayment?.status || payment?.status || null,
+			paymentIntentStatus: intent.status
+		});
+	} catch (error) {
+		console.error('Reconcile payment error:', error);
+		return res.status(500).json({ message: 'Unable to reconcile payment status' });
+	}
+});
+
 router.post('/webhook', async (req: Request, res: Response) => {
 	try {
 		let event: Stripe.Event;
@@ -240,87 +390,22 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
 		if (event.type === 'payment_intent.succeeded') {
 			const intent = event.data.object as Stripe.PaymentIntent;
-			const transaction = await sequelize.transaction();
-			let confirmedOrderId: number | null = null;
+			const result = await finalizeSucceededPaymentIntent(intent);
 
-			try {
-				const payment = await Payment.findOne({
-					where: { paymentIntentId: intent.id },
-					transaction,
-					lock: transaction.LOCK.UPDATE
-				});
+			if (result.outcome === 'payment_not_found') {
+				return res.status(200).json({ received: true, ignored: 'payment not found' });
+			}
 
-				if (!payment) {
-					await transaction.rollback();
-					return res.status(200).json({ received: true, ignored: 'payment not found' });
-				}
+			if (result.outcome === 'order_not_found') {
+				return res.status(200).json({ received: true, ignored: 'order not found' });
+			}
 
-				if (payment.status === 'succeeded') {
-					await transaction.rollback();
-					await sendOrderConfirmationEmailIfNeeded(payment.orderId).catch((error) => {
-						console.error('Order confirmation email error:', error);
-					});
-					return res.status(200).json({ received: true, ignored: 'already processed' });
-				}
+			if (result.outcome === 'reservation_expired') {
+				return res.status(200).json({ received: true, ignored: 'reservation expired' });
+			}
 
-				const order = await Order.findByPk(payment.orderId, {
-					transaction,
-					lock: transaction.LOCK.UPDATE
-				});
-
-				if (!order) {
-					await transaction.rollback();
-					return res.status(200).json({ received: true, ignored: 'order not found' });
-				}
-
-				if (order.expiresAt && new Date(order.expiresAt).getTime() < Date.now()) {
-					await transaction.rollback();
-				await markOrderAsCancelled(order, 'Reservation expired before webhook confirmation', 'expired');
-					return res.status(200).json({ received: true, ignored: 'reservation expired' });
-				}
-
-				const lineItems = parseLineItemsFromOrder(order);
-
-				await payment.update({
-					status: 'succeeded',
-					transactionId: intent.latest_charge ? String(intent.latest_charge) : intent.id,
-					processedAt: new Date(),
-					failureReason: null
-				}, { transaction });
-
-				await order.update({
-					status: 'confirmed',
-					confirmedAt: new Date(),
-					expiresAt: null
-				}, { transaction });
-				confirmedOrderId = order.id;
-
-				for (const lineItem of lineItems) {
-					for (let i = 0; i < lineItem.quantity; i += 1) {
-						const ticketNumber = generateTicketNumber();
-						const shortCode = await generateTicketShortCode(transaction);
-						await Ticket.create({
-							ticketNumber,
-							shortCode,
-							orderId: order.id,
-							ticketTypeId: lineItem.ticketTypeId,
-							price: lineItem.unitPrice,
-							status: 'valid',
-							qrCode: `ticket:${ticketNumber}`
-						}, { transaction });
-					}
-				}
-
-				await transaction.commit();
-
-				if (confirmedOrderId) {
-					await sendOrderConfirmationEmailIfNeeded(confirmedOrderId).catch((error) => {
-						console.error('Order confirmation email error:', error);
-					});
-				}
-			} catch (error) {
-				await transaction.rollback();
-				throw error;
+			if (result.outcome === 'already_processed') {
+				return res.status(200).json({ received: true, ignored: 'already processed' });
 			}
 		}
 

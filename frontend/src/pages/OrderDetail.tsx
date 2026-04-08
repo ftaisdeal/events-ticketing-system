@@ -1,6 +1,6 @@
 import axios from 'axios';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../contexts/AuthContext';
 import { api, getAuthHeader } from '../utils/api';
@@ -84,13 +84,34 @@ const OrderDetail = (): JSX.Element => {
 	const { token } = useAuth();
 	const { orderId } = useParams();
 	const [searchParams] = useSearchParams();
+	const navigate = useNavigate();
 	const [order, setOrder] = useState<OrderDetailRecord | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
 	const paymentState = searchParams.get('payment');
+	const paymentIntentId = searchParams.get('intent');
 	const isProcessingPayment = paymentState === 'processing';
 
-	const loadOrder = useCallback(async (active: { current: boolean }) => {
+	const reconcilePayment = useCallback(async (active: { current: boolean }) => {
+		if (!token || !orderId || !paymentIntentId) {
+			return;
+		}
+
+		try {
+			await api.post('/payments/reconcile', {
+				orderId: Number(orderId),
+				paymentIntentId
+			}, {
+				headers: getAuthHeader(token)
+			});
+		} catch (_error) {
+			if (!active.current) {
+				return;
+			}
+		}
+	}, [orderId, paymentIntentId, token]);
+
+	const loadOrder = useCallback(async (active: { current: boolean }, options?: { bypassCache?: boolean }) => {
 		if (!token) {
 			if (active.current) {
 				setError('You are not authenticated.');
@@ -109,7 +130,12 @@ const OrderDetail = (): JSX.Element => {
 
 		try {
 			const response = await api.get(`/orders/${orderId}`, {
-				headers: getAuthHeader(token)
+				headers: {
+					...getAuthHeader(token),
+					'Cache-Control': 'no-cache',
+					Pragma: 'no-cache'
+				},
+				params: options?.bypassCache ? { _: Date.now() } : undefined
 			});
 
 			if (active.current) {
@@ -136,32 +162,54 @@ const OrderDetail = (): JSX.Element => {
 	}, [orderId, token]);
 
 	useEffect(() => {
-		let active = true;
+		const active = { current: true };
 
-		void loadOrder({ current: active });
+		void loadOrder(active, { bypassCache: isProcessingPayment || Boolean(paymentIntentId) });
 
 		return () => {
-			active = false;
+			active.current = false;
 		};
-	}, [loadOrder]);
+	}, [isProcessingPayment, loadOrder, paymentIntentId]);
+
+	const latestPayment = useMemo(() => getLatestPayment(order?.payments), [order?.payments]);
+	const shouldPollForConfirmation = Boolean(
+		token &&
+		orderId &&
+		(isProcessingPayment || paymentIntentId) &&
+		(!order || order.status === 'pending' || latestPayment?.status === 'pending' || latestPayment?.status === 'succeeded')
+	);
 
 	useEffect(() => {
-		if (!isProcessingPayment || !token || (order && order.status !== 'pending')) {
+		if (!shouldPollForConfirmation) {
 			return;
 		}
 
 		const active = { current: true };
+		void (async () => {
+			await reconcilePayment(active);
+			await loadOrder(active, { bypassCache: true });
+		})();
 		const interval = window.setInterval(() => {
-			void loadOrder(active);
-		}, 3000);
+			void (async () => {
+				await reconcilePayment(active);
+				await loadOrder(active, { bypassCache: true });
+			})();
+		}, 2000);
 
 		return () => {
 			active.current = false;
 			window.clearInterval(interval);
 		};
-	}, [isProcessingPayment, loadOrder, order, token]);
+	}, [loadOrder, reconcilePayment, shouldPollForConfirmation]);
 
-	const latestPayment = useMemo(() => getLatestPayment(order?.payments), [order?.payments]);
+	useEffect(() => {
+		if (!order || order.status !== 'confirmed' || (!isProcessingPayment && !paymentIntentId)) {
+			return;
+		}
+
+		navigate(`/orders/${order.id}`, { replace: true });
+	}, [isProcessingPayment, navigate, order, paymentIntentId]);
+
 	const showProcessingBanner = isProcessingPayment && (!order || order.status === 'pending');
 	const showSuccessBanner = order?.status === 'confirmed';
 	const showRetryBanner = order?.status === 'pending' && Boolean(latestPayment && PAYMENT_FAILURE_STATUSES.has(latestPayment.status));
