@@ -44,13 +44,51 @@ const escapeHtml = (value: string) => {
 		.replace(/'/g, '&#39;');
 };
 
+const getVenueAddressLine = (venue: any) => {
+	if (!venue) {
+		return '';
+	}
+
+	const statePostalParts = [venue.state, venue.postalCode].filter(Boolean).join(' ');
+	return [venue.address, statePostalParts].filter(Boolean).join(', ');
+};
+
+const resolveTimeZone = (value: unknown): string => {
+	const candidate = typeof value === 'string' && value.trim() ? value.trim() : 'UTC';
+
+	try {
+		Intl.DateTimeFormat('en-US', { timeZone: candidate }).format(new Date());
+		return candidate;
+	} catch (_error) {
+		return 'UTC';
+	}
+};
+
+const formatEventDateTime = (value: unknown, timeZone: string) => {
+	if (!value) {
+		return 'TBD';
+	}
+
+	return new Intl.DateTimeFormat('en-US', {
+		timeZone,
+		weekday: 'long',
+		month: 'long',
+		day: 'numeric',
+		year: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+		timeZoneName: 'short'
+	}).format(new Date(String(value)));
+};
+
 const buildOrderConfirmationEmail = async (order: any) => {
 	const publicFrontendUrl = process.env.PUBLIC_FRONTEND_URL || process.env.FRONTEND_URL;
 	const lineItems = parseLineItemsFromOrder(order);
 	const eventTitle = order.event?.title || 'Your event';
-	const eventDate = order.event?.startDateTime
-		? new Date(order.event.startDateTime).toLocaleString()
-		: 'TBD';
+	const eventTimeZone = resolveTimeZone(order.event?.timezone);
+	const eventDate = formatEventDateTime(order.event?.startDateTime, eventTimeZone);
+	const venueName = String(order.event?.venue?.name || '');
+	const venueAddressLine = getVenueAddressLine(order.event?.venue);
 	const customerName = [order.user?.firstName, order.user?.lastName].filter(Boolean).join(' ') || 'Customer';
 	const total = formatMoney(Number(order.totalAmount || 0), String(order.currency || 'USD'));
 	const ticketNumbers = Array.isArray(order.tickets)
@@ -66,6 +104,7 @@ const buildOrderConfirmationEmail = async (order: any) => {
 		: '- Tickets will appear in your account shortly';
 	const ticketNumberLines = ticketNumbers.length > 0 ? ticketNumbers.map((ticket: { ticketNumber: string; shortCode: string }) => `- ${ticket.ticketNumber}${ticket.shortCode ? ` (check-in code: ${formatShortCode(ticket.shortCode)})` : ''}`).join('\n') : '- Tickets available in your account';
 	const ordersUrl = publicFrontendUrl ? `${publicFrontendUrl.replace(/\/$/, '')}/orders/${order.id}` : null;
+	const brandingImageUrl = publicFrontendUrl ? `${publicFrontendUrl.replace(/\/$/, '')}/img/RDX.png` : null;
 	const ticketQrSections = await Promise.all(ticketNumbers.map(async (ticket: { ticketNumber: string; shortCode: string; qrCode: string; ticketTypeName: string }) => {
 		const qrDataUrl = await QRCode.toDataURL(ticket.qrCode, {
 			margin: 1,
@@ -84,6 +123,8 @@ const buildOrderConfirmationEmail = async (order: any) => {
 		`Your order ${order.orderNumber} has been confirmed for ${eventTitle}.`,
 		'',
 		`Event date: ${eventDate}`,
+		venueName ? `Venue: ${venueName}` : '',
+		venueAddressLine ? `Address: ${venueAddressLine}` : '',
 		`Order total: ${total}`,
 		'',
 		'Tickets purchased:',
@@ -100,7 +141,7 @@ const buildOrderConfirmationEmail = async (order: any) => {
 	const html = `
 		<p>Hello ${customerName},</p>
 		<p>Your order <strong>${order.orderNumber}</strong> has been confirmed for <strong>${eventTitle}</strong>.</p>
-		<p><strong>Event date:</strong> ${eventDate}<br /><strong>Order total:</strong> ${total}</p>
+		<p><strong>Event date:</strong> ${eventDate}${venueName ? `<br /><strong>Venue:</strong> ${escapeHtml(venueName)}` : ''}${venueAddressLine ? `<br /><strong>Address:</strong> ${escapeHtml(venueAddressLine)}` : ''}<br /><strong>Order total:</strong> ${total}</p>
 		<p><strong>Tickets purchased:</strong></p>
 		<ul>${lineItems.length > 0 ? lineItems.map((item) => `<li>${item.ticketTypeName}: ${item.quantity} x ${formatMoney(Number(item.unitPrice || 0), String(order.currency || 'USD'))}</li>`).join('') : '<li>Tickets will appear in your account shortly</li>'}</ul>
 		<p><strong>Ticket numbers:</strong></p>
@@ -115,10 +156,11 @@ const buildOrderConfirmationEmail = async (order: any) => {
 			</div>`).join('')}</div>` : ''}
 		${ordersUrl ? `<p><a href="${ordersUrl}">View your order</a></p>` : ''}
 		<p>Thank you for your purchase.</p>
+		${brandingImageUrl ? `<p style="margin:24px 0 0;text-align:center;">${ordersUrl ? `<a href="${ordersUrl}" style="display:inline-block;">` : ''}<img src="${brandingImageUrl}" alt="RDX Theater" style="display:inline-block;max-width:220px;width:100%;height:auto;" />${ordersUrl ? '</a>' : ''}</p>` : ''}
 	`;
 
 	return {
-		subject: `Order confirmed: ${order.orderNumber}`,
+		subject: `RDX Theater ticket order confirmed: ${order.orderNumber}`,
 		text,
 		html
 	};
@@ -133,7 +175,13 @@ export const sendOrderConfirmationEmailIfNeeded = async (orderId: number): Promi
 	const order = await db.Order.findByPk(orderId, {
 		include: [
 			{ model: db.User, as: 'user' },
-			{ model: db.Event, as: 'event' },
+			{
+				model: db.Event,
+				as: 'event',
+				include: [
+					{ model: db.Venue, as: 'venue' }
+				]
+			},
 			{ model: db.Ticket, as: 'tickets' }
 		]
 	});
