@@ -8,7 +8,7 @@ const createPaymentModel = (sequelize: Sequelize) => {
     provider: { type: DataTypes.STRING, allowNull: false, defaultValue: 'stripe' },
     amount: { type: DataTypes.FLOAT, allowNull: false },
     currency: { type: DataTypes.STRING(3), allowNull: false, defaultValue: 'USD' },
-    status: { type: DataTypes.STRING, defaultValue: 'pending' },
+    status: { type: DataTypes.ENUM('pending', 'succeeded', 'failed', 'cancelled', 'refunded', 'expired'), defaultValue: 'pending' },
     transactionId: { type: DataTypes.STRING },
     metadata: { type: DataTypes.JSON },
     failureReason: { type: DataTypes.TEXT },

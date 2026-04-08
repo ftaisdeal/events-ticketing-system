@@ -66,9 +66,6 @@ const Navbar = (): JSX.Element => {
 									<NavLink to="/orders" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
 										Orders
 									</NavLink>
-									<NavLink to="/profile" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
-										Profile
-									</NavLink>
 									{user?.role === 'organizer' ? (
 										<NavLink to="/dashboard" className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}>
 											Dashboard
@@ -83,7 +80,12 @@ const Navbar = (): JSX.Element => {
 				<div className="site-actions">
 					{isAuthenticated ? (
 						<>
-							<span className="welcome-chip">{user?.role === 'admin' ? 'admin' : user?.firstName}</span>
+							<NavLink
+								to="/profile"
+								className={({ isActive }) => `welcome-chip${isActive ? ' welcome-chip--active' : ''}`}
+							>
+								{user?.role === 'admin' ? 'admin' : user?.firstName}
+							</NavLink>
 							<button type="button" className="action-btn action-btn--ghost" onClick={handleLogout}>
 								Log Out
 							</button>

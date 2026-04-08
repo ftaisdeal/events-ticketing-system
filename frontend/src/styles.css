@@ -114,6 +114,15 @@ a {
   font-weight: 600;
   color: #174a7a;
   background: #e7f3ff;
+  text-decoration: none;
+  transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+
+.welcome-chip:hover,
+.welcome-chip--active {
+  color: #103a60;
+  border-color: #8dc1ef;
+  background: #d8ebff;
 }
 
 .action-btn {

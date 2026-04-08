@@ -23,6 +23,7 @@ type OrderRow = {
 };
 
 const PAYMENT_FAILURE_STATUSES = new Set(['failed', 'cancelled']);
+const HIDDEN_HISTORY_STATUSES = new Set(['expired', 'failed', 'cancelled']);
 
 const getLatestPayment = (order: OrderRow) => {
 	if (!Array.isArray(order.payments) || order.payments.length === 0) {
@@ -113,6 +114,9 @@ const Orders = (): JSX.Element => {
 	const highlightedOrder = highlightedOrderId > 0
 		? orders.find((order) => order.id === highlightedOrderId)
 		: undefined;
+	const visibleOrders = orders.filter((order) => !HIDDEN_HISTORY_STATUSES.has(order.status));
+	const activeOrders = visibleOrders.filter((order) => order.status === 'pending');
+	const historicalOrders = visibleOrders.filter((order) => order.status !== 'pending');
 	const highlightedOrderLatestPayment = highlightedOrder ? getLatestPayment(highlightedOrder) : null;
 	const highlightedOrderFailureMessage = highlightedOrder ? getPaymentFailureMessage(highlightedOrder) : null;
 	const showProcessingBanner = isProcessingPayment && (!highlightedOrder || highlightedOrder.status === 'pending');
@@ -144,10 +148,30 @@ const Orders = (): JSX.Element => {
 			) : null}
 			{isLoading ? <p>Loading orders...</p> : null}
 			{error ? <p className="error-text">{error}</p> : null}
-			{!isLoading && !error && orders.length === 0 ? <p>No orders made so far.</p> : null}
+			{!isLoading && !error && visibleOrders.length === 0 ? <p>No active or completed orders yet.</p> : null}
 
-			<div className="event-grid">
-				{orders.map((order) => (
+			{activeOrders.length > 0 ? <h2>Active Reservations</h2> : null}
+			{activeOrders.length > 0 ? (
+				<div className="event-grid">
+					{activeOrders.map((order) => (
+						<article className="event-card" key={order.id}>
+							<h2>{order.orderNumber || `Order #${order.id}`}</h2>
+							<p>
+								Total: {Number(order.totalAmount).toFixed(2)} {order.currency}
+							</p>
+							<p className="event-card__meta">Status: {order.status}</p>
+							<p className="event-card__meta">Placed: {new Date(order.createdAt).toLocaleString()}</p>
+							{order.expiresAt ? <p className="event-card__meta">Reservation expires: {new Date(order.expiresAt).toLocaleString()}</p> : null}
+							{getPaymentFailureMessage(order) ? <p className="event-card__meta">Latest payment attempt: {getPaymentFailureMessage(order)}</p> : null}
+						</article>
+					))}
+				</div>
+			) : null}
+
+			{historicalOrders.length > 0 ? <h2>Order History</h2> : null}
+			{historicalOrders.length > 0 ? (
+				<div className="event-grid">
+					{historicalOrders.map((order) => (
 					<article className="event-card" key={order.id}>
 						<h2>{order.orderNumber || `Order #${order.id}`}</h2>
 						<p>
@@ -159,8 +183,9 @@ const Orders = (): JSX.Element => {
 						{order.confirmedAt ? <p className="event-card__meta">Confirmed: {new Date(order.confirmedAt).toLocaleString()}</p> : null}
 						{getPaymentFailureMessage(order) ? <p className="event-card__meta">Latest payment attempt: {getPaymentFailureMessage(order)}</p> : null}
 					</article>
-				))}
-			</div>
+					))}
+				</div>
+			) : null}
 		</section>
 	);
 };

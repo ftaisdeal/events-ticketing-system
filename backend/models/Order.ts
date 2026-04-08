@@ -8,7 +8,7 @@ const createOrderModel = (sequelize: Sequelize) => {
     eventId: { type: DataTypes.INTEGER, allowNull: false },
     totalAmount: { type: DataTypes.FLOAT, allowNull: false },
     currency: { type: DataTypes.STRING(3), allowNull: false, defaultValue: 'USD' },
-    status: { type: DataTypes.STRING, defaultValue: 'pending' },
+    status: { type: DataTypes.ENUM('pending', 'confirmed', 'cancelled', 'refunded', 'failed', 'expired'), defaultValue: 'pending' },
     customerInfo: { type: DataTypes.JSON },
     expiresAt: { type: DataTypes.DATE },
     confirmedAt: { type: DataTypes.DATE }
