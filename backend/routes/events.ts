@@ -454,7 +454,10 @@ router.get('/manage/events', authenticate, ensureOrganizer, async (req: Authenti
           attributes: ['quantitySold']
         }
       ],
-      order: [['startDateTime', 'DESC']]
+      order: [
+        ['startDateTime', 'ASC'],
+        ['id', 'ASC']
+      ]
     });
 
     const serializedEvents = events.map((eventRecord: any) => {
