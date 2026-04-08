@@ -12,7 +12,8 @@ const createOrderModel = (sequelize: Sequelize) => {
     customerInfo: { type: DataTypes.JSON },
     expiresAt: { type: DataTypes.DATE },
     confirmedAt: { type: DataTypes.DATE },
-    confirmationEmailSentAt: { type: DataTypes.DATE }
+    confirmationEmailSentAt: { type: DataTypes.DATE },
+    eventReminderEmailSentAt: { type: DataTypes.DATE }
   }, {
     tableName: 'orders',
     timestamps: true

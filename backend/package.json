@@ -12,6 +12,9 @@
     "migrate:undo": "sequelize-cli db:migrate:undo",
     "db:reset:soft": "tsx scripts/softReset.ts --confirm",
     "email:test": "tsx scripts/testEmail.ts",
+    "email:send-event-reminders": "tsx scripts/sendEventReminders.ts",
+    "email:send-event-reminders:dry-run": "tsx scripts/sendEventReminders.ts --dry-run",
+    "email:send-event-reminders:cron": "./scripts/runEventReminders.sh",
     "test": "jest"
   },
   "dependencies": {

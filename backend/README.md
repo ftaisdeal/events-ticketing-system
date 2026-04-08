@@ -74,6 +74,9 @@ EMAIL_PORT=587
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASSWORD=your_app_password
 EMAIL_FROM=boxoffice@example.com
+EVENT_REMINDER_LOOKAHEAD_HOURS=48
+EVENT_REMINDER_ALERT_TO=ops@example.com
+EVENT_REMINDER_ALERT_SLACK_WEBHOOK_URL=
 ```
 
 ### 3. Database Setup
@@ -194,6 +197,8 @@ This command is destructive and intended for local development only. It clears o
 Order confirmation emails use the SMTP settings above. If email settings are missing, order confirmation still succeeds and the backend logs that the email was skipped.
 Set `PUBLIC_FRONTEND_URL` to the public customer-facing app origin so email links do not point at a local development URL.
 
+Event reminder emails are sent to the purchaser email on confirmed orders the day before the event, based on the event timezone. The backend tracks `orders.eventReminderEmailSentAt` so each order reminder is only sent once.
+
 Send a test email with the current SMTP settings:
 ```bash
 cd backend
@@ -206,6 +211,76 @@ If you are already at the repository root, you can also run:
 ```bash
 npm --prefix backend run db:reset:soft
 ```
+
+Run the reminder job manually:
+```bash
+cd backend
+npm run email:send-event-reminders
+```
+
+Run the reminder job in dry-run mode without sending emails or updating reminder timestamps:
+```bash
+cd backend
+npm run email:send-event-reminders:dry-run
+```
+
+Or from the repository root:
+```bash
+npm --prefix backend run email:send-event-reminders
+```
+
+Or from the repository root in dry-run mode:
+```bash
+npm --prefix backend run email:send-event-reminders:dry-run
+```
+
+Filter a run to a single order:
+```bash
+cd backend
+npm run email:send-event-reminders -- --dry-run --order-id=123
+```
+
+Filter a run to a single event:
+```bash
+cd backend
+npm run email:send-event-reminders -- --dry-run --event-id=45
+```
+
+Run through the cron wrapper locally:
+```bash
+cd backend
+npm run email:send-event-reminders:cron
+```
+
+Recommended production setup: run the reminder script from a single external cron or platform scheduler rather than from the API process.
+
+Example crontab entry that runs every hour through the wrapper:
+```bash
+0 * * * * /absolute/path/to/ticketing/backend/scripts/runEventReminders.sh
+```
+
+Running hourly is safer than once per day because the reminder logic evaluates the event date in each event's timezone.
+
+The reminder script emits structured JSON logs to stdout/stderr for cron capture, including run start, run summary, dry-run matches, and per-order failures.
+
+The cron wrapper rotates its log file before each run. Defaults:
+- Log file: `backend/logs/event-reminders.log`
+- Max size before rotation: `10485760` bytes
+- Backups kept: `5`
+
+You can override the wrapper behavior with environment variables:
+```bash
+EVENT_REMINDER_LOG_DIR=/var/log/ticketing
+EVENT_REMINDER_LOG_FILE=/var/log/ticketing/event-reminders.log
+EVENT_REMINDER_LOG_MAX_BYTES=20971520
+EVENT_REMINDER_LOG_BACKUPS=10
+```
+
+Failure alerts can be sent to a second channel:
+- Set `EVENT_REMINDER_ALERT_TO` for email alerts.
+- Set `EVENT_REMINDER_ALERT_SLACK_WEBHOOK_URL` for Slack webhook alerts.
+
+The script only sends alerts for real runs, not dry-runs.
 
 ## Deployment
 
