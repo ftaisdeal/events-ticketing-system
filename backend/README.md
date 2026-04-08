@@ -180,10 +180,16 @@ npm run typecheck
 
 Soft reset local transactional data:
 ```bash
+cd backend
 npm run db:reset:soft
 ```
 
 This command is destructive and intended for local development only. It clears orders, payments, tickets, and check-ins, resets `ticket_types.quantitySold` to `0`, and preserves users, events, venues, categories, and ticket types.
+
+If you are already at the repository root, you can also run:
+```bash
+npm --prefix backend run db:reset:soft
+```
 
 ## Deployment
 

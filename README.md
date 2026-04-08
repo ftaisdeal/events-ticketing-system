@@ -50,3 +50,5 @@ ticketing/
 - Backend runs on http://localhost:3001
 - Frontend runs on http://localhost:5173
 - Database runs on localhost:3306
+- Run backend npm scripts from the backend directory, for example: `cd backend && npm run db:reset:soft`
+- Or run a backend script from the repository root with: `npm --prefix backend run <script>`
