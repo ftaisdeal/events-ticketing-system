@@ -279,7 +279,12 @@ router.get('/my', authenticate, async (req: AuthenticatedRequest, res: Response)
 		}
 
 		const orders = await Order.findAll({
-			where: { userId },
+			where: {
+				userId,
+				status: {
+					[Sequelize.Op.in]: ['pending', 'confirmed']
+				}
+			},
 			include: [{ model: Payment, as: 'payments' }],
 			order: [['createdAt', 'DESC']]
 		});

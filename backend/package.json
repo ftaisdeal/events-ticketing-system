@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "sequelize-cli db:migrate",
     "migrate:undo": "sequelize-cli db:migrate:undo",
+    "db:reset:soft": "tsx scripts/softReset.ts --confirm",
     "test": "jest"
   },
   "dependencies": {

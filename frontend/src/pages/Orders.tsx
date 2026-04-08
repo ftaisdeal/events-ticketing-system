@@ -23,7 +23,6 @@ type OrderRow = {
 };
 
 const PAYMENT_FAILURE_STATUSES = new Set(['failed', 'cancelled']);
-const HIDDEN_HISTORY_STATUSES = new Set(['expired', 'failed', 'cancelled']);
 
 const getLatestPayment = (order: OrderRow) => {
 	if (!Array.isArray(order.payments) || order.payments.length === 0) {
@@ -114,9 +113,8 @@ const Orders = (): JSX.Element => {
 	const highlightedOrder = highlightedOrderId > 0
 		? orders.find((order) => order.id === highlightedOrderId)
 		: undefined;
-	const visibleOrders = orders.filter((order) => !HIDDEN_HISTORY_STATUSES.has(order.status));
-	const activeOrders = visibleOrders.filter((order) => order.status === 'pending');
-	const historicalOrders = visibleOrders.filter((order) => order.status !== 'pending');
+	const activeOrders = orders.filter((order) => order.status === 'pending');
+	const historicalOrders = orders.filter((order) => order.status !== 'pending');
 	const highlightedOrderLatestPayment = highlightedOrder ? getLatestPayment(highlightedOrder) : null;
 	const highlightedOrderFailureMessage = highlightedOrder ? getPaymentFailureMessage(highlightedOrder) : null;
 	const showProcessingBanner = isProcessingPayment && (!highlightedOrder || highlightedOrder.status === 'pending');
@@ -148,7 +146,7 @@ const Orders = (): JSX.Element => {
 			) : null}
 			{isLoading ? <p>Loading orders...</p> : null}
 			{error ? <p className="error-text">{error}</p> : null}
-			{!isLoading && !error && visibleOrders.length === 0 ? <p>No active or completed orders yet.</p> : null}
+			{!isLoading && !error && orders.length === 0 ? <p>No active or completed orders yet.</p> : null}
 
 			{activeOrders.length > 0 ? <h2>Active Reservations</h2> : null}
 			{activeOrders.length > 0 ? (

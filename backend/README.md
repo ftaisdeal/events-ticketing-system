@@ -122,7 +122,7 @@ The server will start on http://localhost:3001
 
 ### Orders
 - `POST /api/orders/reserve` - Reserve inventory and create pending order
-- `GET /api/orders/my` - Get current user's orders
+- `GET /api/orders/my` - Get current user's active reservations and confirmed orders
 - `POST /api/orders/:orderId/cancel` - Cancel pending order and release inventory
 
 ### Payments
@@ -177,6 +177,13 @@ Run a typecheck:
 ```bash
 npm run typecheck
 ```
+
+Soft reset local transactional data:
+```bash
+npm run db:reset:soft
+```
+
+This command is destructive and intended for local development only. It clears orders, payments, tickets, and check-ins, resets `ticket_types.quantitySold` to `0`, and preserves users, events, venues, categories, and ticket types.
 
 ## Deployment
 
