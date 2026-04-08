@@ -296,6 +296,49 @@ router.get('/my', authenticate, async (req: AuthenticatedRequest, res: Response)
 	}
 });
 
+router.get('/:orderId', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+	try {
+		const userId = req.user?.userId;
+		const orderId = Number(req.params.orderId);
+
+		if (!userId) {
+			return res.status(401).json({ message: 'Unauthorized' });
+		}
+
+		if (!orderId) {
+			return res.status(400).json({ message: 'Invalid orderId' });
+		}
+
+		const order = await Order.findOne({
+			where: {
+				id: orderId,
+				userId,
+				status: {
+					[Sequelize.Op.in]: ['pending', 'confirmed']
+				}
+			},
+			include: [
+				{ model: Payment, as: 'payments' },
+				{ model: db.Event, as: 'event' },
+				{
+					model: db.Ticket,
+					as: 'tickets',
+					include: [{ model: db.TicketType, as: 'ticketType' }]
+				}
+			]
+		});
+
+		if (!order) {
+			return res.status(404).json({ message: 'Order not found' });
+		}
+
+		return res.json({ order });
+	} catch (error) {
+		console.error('Get order detail error:', error);
+		return res.status(500).json({ message: 'Unable to fetch order' });
+	}
+});
+
 router.post('/:orderId/cancel', authenticate, async (req: AuthenticatedRequest, res: Response) => {
 	const transaction = await sequelize.transaction();
 

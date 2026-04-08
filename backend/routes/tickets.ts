@@ -64,6 +64,8 @@ const handleValidationErrors = (req: Request, res: Response, next: NextFunction)
 
 const normalizeScanCode = (code: string): string => code.trim();
 
+const normalizeShortCode = (code: string): string => code.replace(/[^a-z0-9]/gi, '').toUpperCase();
+
 const buildEventWhereClause = (user: AuthUser, eventId?: number) => {
 	const startOfToday = new Date();
 	startOfToday.setHours(0, 0, 0, 0);
@@ -95,6 +97,7 @@ const getEventForStaff = async (user: AuthUser, eventId: number) => {
 
 const findTicketByCode = async (code: string, transaction?: any) => {
 	const normalizedCode = normalizeScanCode(code);
+	const normalizedShortCode = normalizeShortCode(normalizedCode);
 	const parsedTicketNumber = normalizedCode.startsWith('ticket:')
 		? normalizedCode.slice('ticket:'.length)
 		: normalizedCode;
@@ -105,7 +108,8 @@ const findTicketByCode = async (code: string, transaction?: any) => {
 			: {
 				[Sequelize.Op.or]: [
 					{ qrCode: normalizedCode },
-					{ ticketNumber: normalizedCode }
+						{ ticketNumber: normalizedCode },
+						{ shortCode: normalizedShortCode }
 				]
 			},
 		include: [
@@ -168,6 +172,7 @@ const serializeLookupResult = (result: string, context: TicketLookupContext | nu
 		ticket: {
 			id: ticket.id,
 			ticketNumber: ticket.ticketNumber,
+			shortCode: ticket.shortCode,
 			qrCode: ticket.qrCode,
 			status: ticket.status,
 			attendeeName: ticket.attendeeName,

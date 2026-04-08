@@ -137,6 +137,7 @@ CREATE TABLE orders (
     notes TEXT,
     expiresAt DATETIME,
     confirmedAt DATETIME,
+    confirmationEmailSentAt DATETIME,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
@@ -151,6 +152,7 @@ CREATE TABLE orders (
 CREATE TABLE tickets (
     id INT AUTO_INCREMENT PRIMARY KEY,
     ticketNumber VARCHAR(50) NOT NULL UNIQUE,
+    shortCode VARCHAR(16) NOT NULL UNIQUE,
     orderId INT NOT NULL,
     ticketTypeId INT NOT NULL,
     attendeeName VARCHAR(200),

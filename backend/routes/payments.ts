@@ -5,6 +5,7 @@ import Stripe from 'stripe';
 import { Transaction } from 'sequelize';
 
 import db from '../models';
+import { sendOrderConfirmationEmailIfNeeded } from '../utils/orderConfirmationEmail';
 
 const { Order, Payment, Ticket, TicketType, sequelize } = db;
 const router = express.Router();
@@ -82,6 +83,34 @@ const releaseReservedInventory = async (order: any, transaction: Transaction) =>
 const generateTicketNumber = () => {
 	const suffix = crypto.randomBytes(4).toString('hex').toUpperCase();
 	return `TKT-${Date.now()}-${suffix}`;
+};
+
+const shortCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+const createRandomShortCode = () => {
+	let code = '';
+	for (let index = 0; index < 8; index += 1) {
+		const nextIndex = crypto.randomInt(0, shortCodeAlphabet.length);
+		code += shortCodeAlphabet[nextIndex];
+	}
+	return code;
+};
+
+const generateTicketShortCode = async (transaction: Transaction) => {
+	for (let attempt = 0; attempt < 10; attempt += 1) {
+		const shortCode = createRandomShortCode();
+		const existingTicket = await Ticket.findOne({
+			where: { shortCode },
+			transaction,
+			lock: transaction.LOCK.UPDATE
+		});
+
+		if (!existingTicket) {
+			return shortCode;
+		}
+	}
+
+	throw new Error('Unable to generate a unique ticket short code');
 };
 
 const markOrderAsCancelled = async (order: any, reason: string, status: 'cancelled' | 'expired' | 'failed' = 'cancelled') => {
@@ -212,6 +241,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
 		if (event.type === 'payment_intent.succeeded') {
 			const intent = event.data.object as Stripe.PaymentIntent;
 			const transaction = await sequelize.transaction();
+			let confirmedOrderId: number | null = null;
 
 			try {
 				const payment = await Payment.findOne({
@@ -227,6 +257,9 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
 				if (payment.status === 'succeeded') {
 					await transaction.rollback();
+					await sendOrderConfirmationEmailIfNeeded(payment.orderId).catch((error) => {
+						console.error('Order confirmation email error:', error);
+					});
 					return res.status(200).json({ received: true, ignored: 'already processed' });
 				}
 
@@ -260,12 +293,15 @@ router.post('/webhook', async (req: Request, res: Response) => {
 					confirmedAt: new Date(),
 					expiresAt: null
 				}, { transaction });
+				confirmedOrderId = order.id;
 
 				for (const lineItem of lineItems) {
 					for (let i = 0; i < lineItem.quantity; i += 1) {
 						const ticketNumber = generateTicketNumber();
+						const shortCode = await generateTicketShortCode(transaction);
 						await Ticket.create({
 							ticketNumber,
+							shortCode,
 							orderId: order.id,
 							ticketTypeId: lineItem.ticketTypeId,
 							price: lineItem.unitPrice,
@@ -276,6 +312,12 @@ router.post('/webhook', async (req: Request, res: Response) => {
 				}
 
 				await transaction.commit();
+
+				if (confirmedOrderId) {
+					await sendOrderConfirmationEmailIfNeeded(confirmedOrderId).catch((error) => {
+						console.error('Order confirmation email error:', error);
+					});
+				}
 			} catch (error) {
 				await transaction.rollback();
 				throw error;

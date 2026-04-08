@@ -4,6 +4,7 @@ const createTicketModel = (sequelize: Sequelize) => {
   const Ticket = sequelize.define('Ticket', {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     ticketNumber: { type: DataTypes.STRING, allowNull: false, unique: true },
+    shortCode: { type: DataTypes.STRING(16), allowNull: false, unique: true },
     orderId: { type: DataTypes.INTEGER, allowNull: false },
     ticketTypeId: { type: DataTypes.INTEGER, allowNull: false },
     attendeeName: { type: DataTypes.STRING },

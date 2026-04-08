@@ -12,6 +12,7 @@ import Register from './pages/Auth/Register';
 import Profile from './pages/Profile';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
+import OrderDetail from './pages/OrderDetail';
 import Orders from './pages/Orders';
 import Dashboard from './pages/Dashboard/Dashboard';
 import AdminOrders from './pages/Admin/Orders';
@@ -59,6 +60,14 @@ function App(): JSX.Element {
               element={
                 <ProtectedRoute>
                   <Orders />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/orders/:orderId" 
+              element={
+                <ProtectedRoute>
+                  <OrderDetail />
                 </ProtectedRoute>
               } 
             />

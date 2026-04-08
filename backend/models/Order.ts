@@ -11,7 +11,8 @@ const createOrderModel = (sequelize: Sequelize) => {
     status: { type: DataTypes.ENUM('pending', 'confirmed', 'cancelled', 'refunded', 'failed', 'expired'), defaultValue: 'pending' },
     customerInfo: { type: DataTypes.JSON },
     expiresAt: { type: DataTypes.DATE },
-    confirmedAt: { type: DataTypes.DATE }
+    confirmedAt: { type: DataTypes.DATE },
+    confirmationEmailSentAt: { type: DataTypes.DATE }
   }, {
     tableName: 'orders',
     timestamps: true

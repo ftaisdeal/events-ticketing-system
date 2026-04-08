@@ -28,6 +28,15 @@ const resultLabelByKey: Record<string, string> = {
   ticket_cancelled: 'Ticket cancelled'
 };
 
+const formatShortCode = (shortCode?: string) => {
+  const normalized = String(shortCode || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  if (normalized.length !== 8) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 4)}-${normalized.slice(4)}`;
+};
+
 const CheckInPage = (): JSX.Element => {
   const { eventId } = useParams();
   const { token, user, logout } = useAuth();
@@ -144,7 +153,7 @@ const CheckInPage = (): JSX.Element => {
               <div className={`result-state tone-${resultTone}`}>
                 <p className="eyebrow">Latest result</p>
                 <h3>{result ? (resultLabelByKey[result.result] || result.result) : 'Waiting for first scan'}</h3>
-                {result?.ticket ? <p>Ticket #{result.ticket.ticketNumber}</p> : null}
+                {result?.ticket ? <p>Ticket #{result.ticket.ticketNumber}{result.ticket.shortCode ? ` • Check-in ${formatShortCode(result.ticket.shortCode)}` : ''}</p> : null}
               </div>
 
               <form className="manual-form" onSubmit={onManualSubmit}>
@@ -153,7 +162,7 @@ const CheckInPage = (): JSX.Element => {
                   <input
                     value={manualCode}
                     onChange={(event) => setManualCode(event.target.value)}
-                    placeholder="ticket:TKT-... or raw QR value"
+                    placeholder="short code, ticket:TKT-..., or raw QR value"
                   />
                 </label>
                 <button type="submit" className="primary-button" disabled={isRedeeming}>

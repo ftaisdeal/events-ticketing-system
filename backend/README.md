@@ -61,6 +61,7 @@ JWT_SECRET=your_super_secret_jwt_key_here
 PORT=3001
 NODE_ENV=development
 FRONTEND_URL=http://localhost:5173
+PUBLIC_FRONTEND_URL=https://tickets.rdx.theater
 
 # Stripe
 STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
@@ -72,6 +73,7 @@ EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASSWORD=your_app_password
+EMAIL_FROM=boxoffice@example.com
 ```
 
 ### 3. Database Setup
@@ -123,6 +125,7 @@ The server will start on http://localhost:3001
 ### Orders
 - `POST /api/orders/reserve` - Reserve inventory and create pending order
 - `GET /api/orders/my` - Get current user's active reservations and confirmed orders
+- `GET /api/orders/:orderId` - Get a single current user's active or confirmed order
 - `POST /api/orders/:orderId/cancel` - Cancel pending order and release inventory
 
 ### Payments
@@ -137,7 +140,7 @@ The server will start on http://localhost:3001
 3. The frontend calls `POST /api/payments/create-intent` to request a Stripe PaymentIntent.
 4. Stripe Elements confirms the payment in the browser using the returned client secret.
 5. Stripe sends `payment_intent.succeeded` or failure events to `POST /api/payments/webhook`.
-6. The webhook updates the payment, confirms the order, and creates tickets.
+6. The webhook updates the payment, confirms the order, creates tickets, and sends the order confirmation email when email settings are configured.
 
 For local testing, use Stripe CLI forwarding so the signed webhook secret matches your local server:
 
@@ -155,6 +158,8 @@ stripe listen --forward-to localhost:3001/api/payments/webhook
 - **Order** - Customer orders
 - **Ticket** - Individual tickets
 - **Payment** - Payment transactions
+
+Tickets are issued with both a canonical `ticketNumber` and a short manual `shortCode` for door staff lookup.
 
 ## Security Features
 
@@ -185,6 +190,17 @@ npm run db:reset:soft
 ```
 
 This command is destructive and intended for local development only. It clears orders, payments, tickets, and check-ins, resets `ticket_types.quantitySold` to `0`, and preserves users, events, venues, categories, and ticket types.
+
+Order confirmation emails use the SMTP settings above. If email settings are missing, order confirmation still succeeds and the backend logs that the email was skipped.
+Set `PUBLIC_FRONTEND_URL` to the public customer-facing app origin so email links do not point at a local development URL.
+
+Send a test email with the current SMTP settings:
+```bash
+cd backend
+npm run email:test -- your-address@example.com
+```
+
+If you omit the address, the script falls back to `EMAIL_TEST_TO` and then `EMAIL_USER`.
 
 If you are already at the repository root, you can also run:
 ```bash

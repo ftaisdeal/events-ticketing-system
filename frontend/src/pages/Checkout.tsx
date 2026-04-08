@@ -327,7 +327,7 @@ const Checkout = (): JSX.Element => {
 		setIsRedirectingAfterPayment(true);
 		sessionStorage.removeItem(CHECKOUT_SESSION_KEY);
 		clearStoredCart();
-		navigate(`/orders?payment=processing&orderId=${reservationResult?.orderId || ''}&intent=${paymentIntentId}&status=${status}`, {
+		navigate(`/orders/${reservationResult?.orderId || ''}?payment=processing&intent=${paymentIntentId}&status=${status}`, {
 			replace: true
 		});
 	};
