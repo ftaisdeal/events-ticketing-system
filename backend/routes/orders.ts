@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { Transaction } from 'sequelize';
 
 import db from '../models';
+import { calculateGrossOrderPricing, PricingBreakdown, toCents } from '../utils/pricing';
 
 const { Order, TicketType, Payment, sequelize, Sequelize } = db;
 const router = express.Router();
@@ -19,6 +20,11 @@ type LineItem = {
 	ticketTypeName: string;
 };
 
+type OrderCustomerInfo = {
+	lineItems?: LineItem[];
+	pricing?: PricingBreakdown;
+};
+
 type AuthUser = {
 	userId: number;
 	email: string;
@@ -30,12 +36,49 @@ type AuthenticatedRequest = Request & {
 };
 
 const parseLineItemsFromOrder = (order: any): LineItem[] => {
-	const customerInfo = order.customerInfo as { lineItems?: LineItem[] } | null;
+	const customerInfo = order.customerInfo as OrderCustomerInfo | null;
 	if (!customerInfo || !Array.isArray(customerInfo.lineItems)) {
 		return [];
 	}
 	return customerInfo.lineItems;
 };
+
+const parsePricingFromOrder = (order: any): PricingBreakdown | null => {
+	const customerInfo = order.customerInfo as OrderCustomerInfo | null;
+	const pricing = customerInfo?.pricing;
+	if (!pricing) {
+		return null;
+	}
+
+	const subtotal = Number(pricing.subtotal);
+	const processingFee = Number(pricing.processingFee);
+	const totalAmount = Number(pricing.totalAmount);
+	if (![subtotal, processingFee, totalAmount].every(Number.isFinite)) {
+		return null;
+	}
+
+	return {
+		subtotal,
+		processingFee,
+		totalAmount,
+		feePercent: Number(pricing.feePercent) || 0,
+		feeFixed: Number(pricing.feeFixed) || 0,
+		includesProcessingFee: Boolean(pricing.includesProcessingFee)
+	};
+};
+
+const calculateSubtotalFromLineItems = (lineItems: LineItem[]) => {
+	const subtotalInCents = lineItems.reduce(
+		(sum, item) => sum + toCents(Number(item.unitPrice || 0)) * (Number(item.quantity) || 0),
+		0
+	);
+	return subtotalInCents / 100;
+};
+
+const buildCustomerInfo = (lineItems: LineItem[], pricing: PricingBreakdown) => ({
+	lineItems,
+	pricing
+});
 
 const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
 	try {
@@ -151,6 +194,17 @@ router.post('/reserve', authenticate, async (req: AuthenticatedRequest, res: Res
 				continue;
 			}
 
+			const existingLineItems = parseLineItemsFromOrder(existingOrder);
+			const pricing = parsePricingFromOrder(existingOrder)
+				|| calculateGrossOrderPricing(calculateSubtotalFromLineItems(existingLineItems));
+
+			if (Number(existingOrder.totalAmount) !== pricing.totalAmount) {
+				await existingOrder.update({
+					totalAmount: pricing.totalAmount,
+					customerInfo: buildCustomerInfo(existingLineItems, pricing)
+				}, { transaction });
+			}
+
 			let payment = await Payment.findOne({
 				where: {
 					orderId: existingOrder.id,
@@ -163,12 +217,21 @@ router.post('/reserve', authenticate, async (req: AuthenticatedRequest, res: Res
 			if (!payment) {
 				payment = await Payment.create({
 					orderId: existingOrder.id,
-					amount: Number(existingOrder.totalAmount),
+					amount: pricing.totalAmount,
 					currency: String(existingOrder.currency || 'USD'),
 					provider: 'stripe',
 					status: 'pending',
 					metadata: {
-						lineItems: parseLineItemsFromOrder(existingOrder)
+						lineItems: existingLineItems,
+						pricing
+					}
+				}, { transaction });
+			} else if (Number(payment.amount) !== pricing.totalAmount) {
+				await payment.update({
+					amount: pricing.totalAmount,
+					metadata: {
+						lineItems: existingLineItems,
+						pricing
 					}
 				}, { transaction });
 			}
@@ -183,7 +246,7 @@ router.post('/reserve', authenticate, async (req: AuthenticatedRequest, res: Res
 		}
 
 		const lineItems: LineItem[] = [];
-		let totalAmount = 0;
+		let subtotalInCents = 0;
 
 		for (const item of items) {
 			if (!item.ticketTypeId || !item.quantity || item.quantity < 1) {
@@ -220,7 +283,7 @@ router.post('/reserve', authenticate, async (req: AuthenticatedRequest, res: Res
 			}, { transaction });
 
 			const unitPrice = Number(ticketType.price);
-			totalAmount += unitPrice * item.quantity;
+			subtotalInCents += toCents(unitPrice) * item.quantity;
 
 			lineItems.push({
 				ticketTypeId: Number(ticketType.id),
@@ -231,28 +294,29 @@ router.post('/reserve', authenticate, async (req: AuthenticatedRequest, res: Res
 			});
 		}
 
+		const pricing = calculateGrossOrderPricing(subtotalInCents / 100);
+
 		const expiresAt = new Date(Date.now() + reservationMinutes * 60 * 1000);
 		const order = await Order.create({
 			orderNumber: generateOrderNumber(),
 			userId,
 			eventId: normalizedEventId,
-			totalAmount,
+			totalAmount: pricing.totalAmount,
 			currency: 'USD',
 			status: 'pending',
 			expiresAt,
-			customerInfo: {
-				lineItems
-			}
+			customerInfo: buildCustomerInfo(lineItems, pricing)
 		}, { transaction });
 
 		const payment = await Payment.create({
 			orderId: order.id,
-			amount: totalAmount,
+			amount: pricing.totalAmount,
 			currency: 'USD',
 			provider: 'stripe',
 			status: 'pending',
 			metadata: {
-				lineItems
+				lineItems,
+				pricing
 			}
 		}, { transaction });
 

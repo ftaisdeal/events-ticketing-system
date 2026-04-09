@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
+import { PricingBreakdown } from './pricing';
 
 type LineItem = {
 	ticketTypeId: number;
@@ -7,6 +8,11 @@ type LineItem = {
 	unitPrice: number;
 	eventId: number;
 	ticketTypeName: string;
+};
+
+type OrderCustomerInfo = {
+	lineItems?: LineItem[];
+	pricing?: PricingBreakdown;
 };
 
 type TicketSummary = {
@@ -20,12 +26,29 @@ type TicketSummary = {
 };
 
 const parseLineItemsFromOrder = (order: any): LineItem[] => {
-	const customerInfo = order.customerInfo as { lineItems?: LineItem[] } | null;
+	const customerInfo = order.customerInfo as OrderCustomerInfo | null;
 	if (!customerInfo || !Array.isArray(customerInfo.lineItems)) {
 		return [];
 	}
 
 	return customerInfo.lineItems;
+};
+
+const parsePricingFromOrder = (order: any): PricingBreakdown | null => {
+	const customerInfo = order.customerInfo as OrderCustomerInfo | null;
+	const pricing = customerInfo?.pricing;
+	if (!pricing) {
+		return null;
+	}
+
+	return {
+		subtotal: Number(pricing.subtotal) || 0,
+		processingFee: Number(pricing.processingFee) || 0,
+		totalAmount: Number(pricing.totalAmount) || 0,
+		feePercent: Number(pricing.feePercent) || 0,
+		feeFixed: Number(pricing.feeFixed) || 0,
+		includesProcessingFee: Boolean(pricing.includesProcessingFee)
+	};
 };
 
 const formatMoney = (amount: number, currency: string) => {
@@ -116,6 +139,9 @@ const renderSummaryPage = (doc: PDFKit.PDFDocument, order: any, lineItems: LineI
 	const venueName = String(order.event?.venue?.name || '');
 	const venueAddressLine = getVenueAddressLine(order.event?.venue);
 	const customerName = [order.user?.firstName, order.user?.lastName].filter(Boolean).join(' ') || 'Customer';
+	const pricing = parsePricingFromOrder(order);
+	const subtotal = pricing ? formatMoney(Number(pricing.subtotal || 0), String(order.currency || 'USD')) : null;
+	const stripeProcessingFee = pricing ? formatMoney(Number(pricing.processingFee || 0), String(order.currency || 'USD')) : null;
 	const total = formatMoney(Number(order.totalAmount || 0), String(order.currency || 'USD'));
 
 	doc.fontSize(24).font('Helvetica-Bold').text('RDX Theater Tickets');
@@ -129,6 +155,12 @@ const renderSummaryPage = (doc: PDFKit.PDFDocument, order: any, lineItems: LineI
 	}
 	if (venueAddressLine) {
 		doc.text(`Address: ${venueAddressLine}`);
+	}
+	if (subtotal) {
+		doc.text(`Subtotal: ${subtotal}`);
+	}
+	if (stripeProcessingFee) {
+		doc.text(`Stripe processing fee: ${stripeProcessingFee}`);
 	}
 	doc.text(`Total: ${total}`);
 

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 
 import { useAuth } from '../contexts/AuthContext';
 import { api, getAuthHeader } from '../utils/api';
+import { formatCurrency } from '../utils/formatCurrency';
 
 type OrderRow = {
 	id: number;
@@ -116,7 +117,7 @@ const Orders = (): JSX.Element => {
 						<article className="event-card" key={order.id}>
 							<h2>{order.orderNumber || `Order #${order.id}`}</h2>
 							<p>
-								Total: {Number(order.totalAmount).toFixed(2)} {order.currency}
+								Total: {formatCurrency(Number(order.totalAmount), order.currency)}
 							</p>
 							<p className="event-card__meta">Status: {order.status}</p>
 							<p className="event-card__meta">Placed: {new Date(order.createdAt).toLocaleString()}</p>
@@ -137,7 +138,7 @@ const Orders = (): JSX.Element => {
 					<article className="event-card" key={order.id}>
 						<h2>{order.orderNumber || `Order #${order.id}`}</h2>
 						<p>
-							Total: {Number(order.totalAmount).toFixed(2)} {order.currency}
+							Total: {formatCurrency(Number(order.totalAmount), order.currency)}
 						</p>
 						<p className="event-card__meta">Status: {order.status}</p>
 						<p className="event-card__meta">Placed: {new Date(order.createdAt).toLocaleString()}</p>

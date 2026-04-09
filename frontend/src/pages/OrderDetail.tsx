@@ -4,6 +4,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { useAuth } from '../contexts/AuthContext';
 import { api, getAuthHeader } from '../utils/api';
+import { PricingSummary } from '../utils/checkoutApi';
+import { formatCurrency } from '../utils/formatCurrency';
 
 type OrderTicket = {
 	id: number;
@@ -51,6 +53,7 @@ type OrderDetailRecord = {
 	confirmedAt?: string | null;
 	customerInfo?: {
 		lineItems?: OrderLineItem[];
+		pricing?: PricingSummary;
 	} | null;
 	event?: OrderEvent;
 	payments?: OrderPayment[];
@@ -214,6 +217,7 @@ const OrderDetail = (): JSX.Element => {
 	const showSuccessBanner = order?.status === 'confirmed';
 	const showRetryBanner = order?.status === 'pending' && Boolean(latestPayment && PAYMENT_FAILURE_STATUSES.has(latestPayment.status));
 	const lineItems = Array.isArray(order?.customerInfo?.lineItems) ? order.customerInfo?.lineItems || [] : [];
+	const pricing = order?.customerInfo?.pricing || null;
 
 	return (
 		<section>
@@ -246,7 +250,9 @@ const OrderDetail = (): JSX.Element => {
 					<div className="panel-card">
 						<h2>{order.orderNumber || `Order #${order.id}`}</h2>
 						<p><strong>Status:</strong> {order.status}</p>
-						<p><strong>Total:</strong> {Number(order.totalAmount).toFixed(2)} {order.currency}</p>
+						{pricing ? <p><strong>Subtotal:</strong> {formatCurrency(Number(pricing.subtotal), order.currency)}</p> : null}
+						{pricing ? <p><strong>Stripe processing fee:</strong> {formatCurrency(Number(pricing.processingFee), order.currency)}</p> : null}
+						<p><strong>Total:</strong> {formatCurrency(Number(order.totalAmount), order.currency)}</p>
 						<p><strong>Placed:</strong> {new Date(order.createdAt).toLocaleString()}</p>
 						{order.confirmedAt ? <p><strong>Confirmed:</strong> {new Date(order.confirmedAt).toLocaleString()}</p> : null}
 						{order.expiresAt ? <p><strong>Reservation expires:</strong> {new Date(order.expiresAt).toLocaleString()}</p> : null}
@@ -260,7 +266,7 @@ const OrderDetail = (): JSX.Element => {
 							{lineItems.length > 0 ? lineItems.map((item) => (
 								<div className="detail-list__row" key={`${item.ticketTypeId}-${item.ticketTypeName}`}>
 									<span>{item.ticketTypeName}</span>
-									<span>{item.quantity} x {Number(item.unitPrice).toFixed(2)} {order.currency}</span>
+									<span>{item.quantity} x {formatCurrency(Number(item.unitPrice), order.currency)}</span>
 								</div>
 							)) : <p>No line items found.</p>}
 						</div>

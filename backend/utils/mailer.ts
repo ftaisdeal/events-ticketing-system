@@ -50,6 +50,8 @@ export const sendEmail = async ({
 		filename: string;
 		content: Buffer | string;
 		contentType?: string;
+		cid?: string;
+		contentDisposition?: 'attachment' | 'inline';
 	}>;
 }): Promise<void> => {
 	const transporter = await getTransporter();

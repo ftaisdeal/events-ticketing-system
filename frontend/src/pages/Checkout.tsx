@@ -6,20 +6,27 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import StripePaymentForm from '../components/Checkout/StripePaymentForm';
 import { useAuth } from '../contexts/AuthContext';
-import { createPaymentIntent, expireOrderReservation, reserveOrder } from '../utils/checkoutApi';
+import { createPaymentIntent, expireOrderReservation, PricingSummary, reserveOrder } from '../utils/checkoutApi';
 import { api } from '../utils/api';
 import { CART_UPDATED_EVENT, clearStoredCart, readStoredCart, StoredCart } from '../utils/cartStorage';
+import { formatCurrency } from '../utils/formatCurrency';
+import { calculateGrossPricing } from '../utils/pricing';
 
 type CheckoutEventSummary = {
 	id: number;
 	title: string;
 	startDateTime: string;
 	endDateTime: string;
+	ticketTypes?: Array<{
+		id: number;
+		price: number;
+	}>;
 };
 
 type CheckoutReservation = {
 	orderId: number;
 	reservationExpiresAt: string;
+	pricing: PricingSummary | null;
 };
 
 type CheckoutIntent = {
@@ -57,6 +64,20 @@ const Checkout = (): JSX.Element => {
 		[cart.items]
 	);
 	const hasValidCart = cart.eventId > 0 && totalUnits > 0;
+	const estimatedPricing = useMemo(() => {
+		const ticketTypes = eventSummary?.ticketTypes || [];
+		if (ticketTypes.length === 0) {
+			return null;
+		}
+
+		const subtotal = cart.items.reduce((sum, item) => {
+			const ticketType = ticketTypes.find((candidate) => candidate.id === item.ticketTypeId);
+			return sum + Number(ticketType?.price || 0) * Number(item.quantity || 0);
+		}, 0);
+
+		return calculateGrossPricing(subtotal);
+	}, [cart.items, eventSummary?.ticketTypes]);
+	const displayedPricing = reservationResult?.pricing || estimatedPricing;
 	const cartSignature = useMemo(() => {
 		const normalizedItems = cart.items
 			.map((item) => ({
@@ -277,7 +298,8 @@ const Checkout = (): JSX.Element => {
 				orderId = reserve.order.id;
 				nextReservation = {
 					orderId: reserve.order.id,
-					reservationExpiresAt: reserve.reservationExpiresAt
+					reservationExpiresAt: reserve.reservationExpiresAt,
+					pricing: reserve.order.customerInfo?.pricing || null
 				};
 				setReservationResult(nextReservation);
 			}
@@ -358,6 +380,13 @@ const Checkout = (): JSX.Element => {
 						<p key={item.ticketTypeId}>{item.quantity} {item.quantity === 1 ? 'ticket' : 'tickets'}</p>
 					))}
 				</div>
+				{displayedPricing ? (
+					<div style={{ marginTop: 12 }}>
+						<p style={{ margin: '0 0 4px' }}><strong>Subtotal:</strong> {formatCurrency(displayedPricing.subtotal)}</p>
+						<p style={{ margin: '0 0 4px' }}><strong>Stripe processing fee:</strong> {formatCurrency(displayedPricing.processingFee)}</p>
+						<p style={{ margin: 0 }}><strong>Total:</strong> {formatCurrency(displayedPricing.totalAmount)}</p>
+					</div>
+				) : null}
 				{!hasValidCart ? <p>Cart is empty. Go to /cart and add items.</p> : null}
 				{isSubmitting ? <p>Preparing secure payment...</p> : null}
 				{reservationResult && timeRemaining !== null ? (

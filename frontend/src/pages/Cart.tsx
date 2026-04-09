@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { formatCurrency } from '../utils/formatCurrency';
+import { calculateGrossPricing } from '../utils/pricing';
 import { api } from '../utils/api';
 import { clearStoredCart, readStoredCart, StoredCart, StoredCartItem, writeStoredCart } from '../utils/cartStorage';
 
@@ -63,10 +65,11 @@ const Cart = (): JSX.Element => {
 		});
 	}, [cart.items, eventSummary?.ticketTypes, totalUnits]);
 
-	const totalAmount = useMemo(
+	const subtotalAmount = useMemo(
 		() => cartDisplayItems.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0),
 		[cartDisplayItems]
 	);
+	const pricingSummary = useMemo(() => calculateGrossPricing(subtotalAmount), [subtotalAmount]);
 
 	useEffect(() => {
 		let active = true;
@@ -224,7 +227,7 @@ const Cart = (): JSX.Element => {
 								<div>
 									<p style={{ margin: 0, fontWeight: 700 }}>{item.name}</p>
 									<p className="event-card__meta" style={{ margin: 0 }}>
-										${item.price.toFixed(2)} each
+										{formatCurrency(item.price)} each
 									</p>
 								</div>
 								<div className="cart-item-controls">
@@ -254,7 +257,9 @@ const Cart = (): JSX.Element => {
 						</p>
 					) : null}
 					<p>{totalUnits} ticket{totalUnits === 1 ? '' : 's'}</p>
-					<p style={{ marginTop: 0, marginBottom: 0, fontWeight: 700 }}>Total: ${totalAmount.toFixed(2)}</p>
+					<p style={{ marginTop: 0, marginBottom: 4 }}>Subtotal: {formatCurrency(pricingSummary.subtotal)}</p>
+					<p style={{ marginTop: 0, marginBottom: 4 }}>Stripe processing fee: {formatCurrency(pricingSummary.processingFee)}</p>
+					<p style={{ marginTop: 0, marginBottom: 0, fontWeight: 700 }}>Estimated total: {formatCurrency(pricingSummary.totalAmount)}</p>
 				</div>
 			) : null}
 

@@ -6,6 +6,7 @@ import { Transaction } from 'sequelize';
 
 import db from '../models';
 import { sendOrderConfirmationEmailIfNeeded } from '../utils/orderConfirmationEmail';
+import { PricingBreakdown } from '../utils/pricing';
 
 const { Order, Payment, Ticket, TicketType, sequelize } = db;
 const router = express.Router();
@@ -38,6 +39,11 @@ type LineItem = {
 	ticketTypeName: string;
 };
 
+type OrderCustomerInfo = {
+	lineItems?: LineItem[];
+	pricing?: PricingBreakdown;
+};
+
 const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
 	try {
 		const token = req.headers.authorization?.split(' ')[1];
@@ -54,11 +60,28 @@ const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFuncti
 };
 
 const parseLineItemsFromOrder = (order: any): LineItem[] => {
-	const customerInfo = order.customerInfo as { lineItems?: LineItem[] } | null;
+	const customerInfo = order.customerInfo as OrderCustomerInfo | null;
 	if (!customerInfo || !Array.isArray(customerInfo.lineItems)) {
 		return [];
 	}
 	return customerInfo.lineItems;
+};
+
+const parsePricingFromOrder = (order: any): PricingBreakdown | null => {
+	const customerInfo = order.customerInfo as OrderCustomerInfo | null;
+	const pricing = customerInfo?.pricing;
+	if (!pricing) {
+		return null;
+	}
+
+	return {
+		subtotal: Number(pricing.subtotal) || 0,
+		processingFee: Number(pricing.processingFee) || 0,
+		totalAmount: Number(pricing.totalAmount) || 0,
+		feePercent: Number(pricing.feePercent) || 0,
+		feeFixed: Number(pricing.feeFixed) || 0,
+		includesProcessingFee: Boolean(pricing.includesProcessingFee)
+	};
 };
 
 const releaseReservedInventory = async (order: any, transaction: Transaction) => {
@@ -276,6 +299,8 @@ router.post('/create-intent', authenticate, async (req: AuthenticatedRequest, re
 		}
 
 		const amountInCents = Math.round(Number(order.totalAmount) * 100);
+		const lineItems = parseLineItemsFromOrder(order);
+		const pricing = parsePricingFromOrder(order);
 		const paymentIntent = await stripe.paymentIntents.create({
 			amount: amountInCents,
 			currency: String(order.currency || 'usd').toLowerCase(),
@@ -294,12 +319,19 @@ router.post('/create-intent', authenticate, async (req: AuthenticatedRequest, re
 				provider: 'stripe',
 				status: 'pending',
 				metadata: {
-					lineItems: parseLineItemsFromOrder(order)
+					lineItems,
+					pricing
 				}
 			}
 		});
 
 		await payment.update({
+			amount: Number(order.totalAmount),
+			currency: String(order.currency || 'USD').toUpperCase(),
+			metadata: {
+				lineItems,
+				pricing
+			},
 			paymentIntentId: paymentIntent.id,
 			status: 'pending'
 		});

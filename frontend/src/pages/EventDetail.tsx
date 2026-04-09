@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { api } from '../utils/api';
 import { readStoredCart, StoredCartItem, writeStoredCart } from '../utils/cartStorage';
+import { formatCurrency } from '../utils/formatCurrency';
+import { calculateGrossPricing } from '../utils/pricing';
 
 type TicketType = {
 	id: number;
@@ -146,13 +148,14 @@ const EventDetail = (): JSX.Element => {
 					const maxSelectable = Math.min(5, Math.max(available, 1));
 					const selectedQuantity = Math.min(quantitiesByTicketType[ticketType.id] || 1, maxSelectable);
 					const previewQuantity = available < 1 ? 0 : selectedQuantity;
-					const previewTotal = Number(ticketType.price) * previewQuantity;
+					const previewSubtotal = Number(ticketType.price) * previewQuantity;
+					const previewPricing = calculateGrossPricing(previewSubtotal);
 
 					return (
 						<article className="event-card" key={ticketType.id}>
 							<h2>Tickets</h2>
 							<p>{ticketType.name}</p>
-							<p>${Number(ticketType.price).toFixed(2)}</p>
+							<p>Base price: {formatCurrency(Number(ticketType.price))}</p>
 							<p className="event-card__meta">Available: {available}</p>
 							<div className="inline-actions" style={{ alignItems: 'center' }}>
 								<button
@@ -184,9 +187,12 @@ const EventDetail = (): JSX.Element => {
 									aria-label="Quantity"
 								/>
 								<p className="event-card__meta" style={{ margin: 0, fontWeight: 700 }}>
-									Total: ${previewTotal.toFixed(2)}
+									Est. total: {formatCurrency(previewPricing.totalAmount)}
 								</p>
 							</div>
+							<p className="event-card__meta" style={{ marginBottom: 0 }}>
+								Includes {formatCurrency(previewPricing.processingFee)} in estimated Stripe processing fees for {previewQuantity || 1} ticket{previewQuantity === 1 ? '' : 's'}.
+							</p>
 						</article>
 					);
 				})}

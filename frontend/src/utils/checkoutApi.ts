@@ -5,6 +5,15 @@ export type CartItem = {
   quantity: number;
 };
 
+export type PricingSummary = {
+  subtotal: number;
+  processingFee: number;
+  totalAmount: number;
+  feePercent: number;
+  feeFixed: number;
+  includesProcessingFee: boolean;
+};
+
 type ReserveOrderPayload = {
   eventId: number;
   items: CartItem[];
@@ -33,7 +42,14 @@ export const reserveOrder = async (token: string, payload: ReserveOrderPayload) 
     headers: authHeaders(token)
   });
   return data as {
-    order: { id: number; totalAmount: number; status: string };
+    order: {
+    id: number;
+    totalAmount: number;
+    status: string;
+    customerInfo?: {
+      pricing?: PricingSummary;
+    };
+  };
     payment: { id: number; status: string };
     reservationExpiresAt: string;
   };
