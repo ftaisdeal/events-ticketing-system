@@ -39,12 +39,18 @@ export const sendEmail = async ({
 	to,
 	subject,
 	text,
-	html
+	html,
+	attachments
 }: {
 	to: string;
 	subject: string;
 	text: string;
 	html: string;
+	attachments?: Array<{
+		filename: string;
+		content: Buffer | string;
+		contentType?: string;
+	}>;
 }): Promise<void> => {
 	const transporter = await getTransporter();
 
@@ -53,6 +59,7 @@ export const sendEmail = async ({
 		to,
 		subject,
 		text,
-		html
+		html,
+		attachments
 	});
 };

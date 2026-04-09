@@ -1,6 +1,7 @@
 import db from '../models';
 import QRCode from 'qrcode';
 import { isEmailConfigured, sendEmail } from './mailer';
+import { generateOrderTicketsPdf } from './orderTicketsPdf';
 
 type LineItem = {
 	ticketTypeId: number;
@@ -172,6 +173,21 @@ export const sendOrderConfirmationEmailIfNeeded = async (orderId: number): Promi
 		return;
 	}
 
+	const [claimedRows] = await db.Order.update(
+		{ confirmationEmailSentAt: new Date() },
+		{
+			where: {
+				id: orderId,
+				status: 'confirmed',
+				confirmationEmailSentAt: null
+			}
+		}
+	);
+
+	if (claimedRows === 0) {
+		return;
+	}
+
 	const order = await db.Order.findByPk(orderId, {
 		include: [
 			{ model: db.User, as: 'user' },
@@ -182,35 +198,39 @@ export const sendOrderConfirmationEmailIfNeeded = async (orderId: number): Promi
 					{ model: db.Venue, as: 'venue' }
 				]
 			},
-			{ model: db.Ticket, as: 'tickets' }
+			{
+				model: db.Ticket,
+				as: 'tickets',
+				include: [
+					{ model: db.TicketType, as: 'ticketType' }
+				]
+			}
 		]
 	});
 
-	if (!order || order.status !== 'confirmed' || order.confirmationEmailSentAt) {
+	if (!order || order.status !== 'confirmed') {
 		return;
 	}
 
 	if (!order.user?.email) {
 		console.warn(`[Email] Skipping order ${order.id} confirmation email because the user email is missing.`);
+		await db.Order.update({ confirmationEmailSentAt: null }, { where: { id: order.id } });
 		return;
 	}
 
-	const { subject, text, html } = await buildOrderConfirmationEmail(order);
-	await sendEmail({
-		to: String(order.user.email),
-		subject,
-		text,
-		html
-	});
-
-	await db.Order.update(
-		{ confirmationEmailSentAt: new Date() },
-		{
-			where: {
-				id: order.id,
-				confirmationEmailSentAt: null
-			}
-		}
-	);
-	console.log(`[Email] Sent order confirmation email for order ${order.id}`);
+	try {
+		const { subject, text, html } = await buildOrderConfirmationEmail(order);
+		const ticketsPdf = await generateOrderTicketsPdf(order);
+		await sendEmail({
+			to: String(order.user.email),
+			subject,
+			text,
+			html,
+			attachments: [ticketsPdf]
+		});
+		console.log(`[Email] Sent order confirmation email for order ${order.id}`);
+	} catch (error) {
+		await db.Order.update({ confirmationEmailSentAt: null }, { where: { id: order.id } });
+		throw error;
+	}
 };
