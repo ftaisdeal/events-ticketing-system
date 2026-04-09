@@ -403,6 +403,10 @@ textarea {
   gap: 16px;
 }
 
+.site-footer__brand-link {
+  display: block;
+}
+
 .site-footer__branding img {
   display: block;
   height: auto;
