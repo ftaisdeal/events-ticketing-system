@@ -7,6 +7,8 @@ import Footer from './components/Layout/Footer';
 import Home from './pages/Home';
 import Events from './pages/Events';
 import EventDetail from './pages/EventDetail';
+import RefundPolicy from './pages/RefundPolicy';
+import CustomerSupport from './pages/CustomerSupport';
 import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
 import Profile from './pages/Profile';
@@ -34,6 +36,8 @@ function App(): JSX.Element {
             <Route path="/" element={<Home />} />
             <Route path="/events" element={<Events />} />
             <Route path="/events/:slug" element={<EventDetail />} />
+            <Route path="/refund-policy" element={<RefundPolicy />} />
+            <Route path="/support" element={<CustomerSupport />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             
