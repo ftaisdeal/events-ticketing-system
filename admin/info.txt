@@ -1,0 +1,3 @@
+4242424242424242
+4000056655665556
+npm --prefix backend run db:reset:soft
